@@ -49,7 +49,7 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/", (req, res) => {
-    req.status(200).json(
+    res.status(200).json(
         ResponseFormatter.success(
             {
                 service: "API Hit Monitoring System",
@@ -145,4 +145,4 @@ async function startServer() {
     }
 }
 
-startServer();
+await startServer();
