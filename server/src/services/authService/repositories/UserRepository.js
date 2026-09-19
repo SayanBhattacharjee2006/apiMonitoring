@@ -7,7 +7,7 @@ import BaseRepository from "./BaseRepository.js";
  * This class provides methods to interact with the User collection in MongoDB.
  */
 class UserRepository extends BaseRepository {
-    constructor(){
+    constructor() {
         super(User);
     }
 
@@ -17,12 +17,29 @@ class UserRepository extends BaseRepository {
      * @returns {Promise<Object>} - Returns the created user object.
      */
     async create(userData) {
-        // try {
+        try {
+            let data = { ...userData };
+            if (data.role == "super_admin" && !data.permissions) {
+                data.permissions = {
+                    canCreateApiKeys: true,
+                    canManageUsers: true,
+                    canViewAnalytics: true,
+                    canExportData: true,
+                };
+            }
 
-        // } catch( error){
-        //     logger.error("Error creating the user:", error );
-        //     throw error;
-        // }
+            const user = new this.model(data);
+            await user.save();
+
+            logger.info("User created successfully", {
+                username: user.username,
+            });
+
+            return user;
+        } catch (error) {
+            logger.error("Error creating the user:", error);
+            throw error;
+        }
     }
 
     /**
@@ -32,6 +49,13 @@ class UserRepository extends BaseRepository {
      */
 
     async findById(userId) {
+        try {
+            const user = await this.model.findById(userId);
+            return user;
+        } catch (error) {
+            logger.error("Error finding the user:", error);
+            throw error;
+        }
     }
 
     /**
@@ -40,6 +64,13 @@ class UserRepository extends BaseRepository {
      * @returns {Promise<Object>} - Returns the user object if found, otherwise null.
      */
     async findByUsername(username) {
+        try {
+            const user = await this.model.findOne({ username });
+            return user;
+        } catch (error) {
+            logger.error("Error finding the user:", error);
+            throw error;
+        }
     }
 
     /**
@@ -48,6 +79,13 @@ class UserRepository extends BaseRepository {
      * @returns {Promise<Object>} - Returns the user object if found.
      */
     async findByEmail(email) {
+        try {
+            const user = await this.model.findOne({ email });
+            return user;
+        } catch (error) {
+            logger.error("Error finding the user:", error);
+            throw error;
+        }
     }
 
     /**
@@ -55,7 +93,16 @@ class UserRepository extends BaseRepository {
      * @returns {Promise<Array>} - Returns an array of active user objects.
      */
     async findActiveUsers() {
+        try {
+            const user = await this.model
+                .findOne({ isActive: true })
+                .select("-password");
+            return user;
+        } catch (error) {
+            logger.error("Error finding the user:", error);
+            throw error;
+        }
     }
-} 
+}
 
-export default new UserRepository
+export default new UserRepository();
