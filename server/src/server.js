@@ -67,6 +67,16 @@ app.use("/", (req, res) => {
 });
 
 /**
+ * Api routes
+ */
+
+import authRoutes from "./services/authService/routes/authRoute.js";
+import clientRoutes from "./services/clientService/routes/clientRoutes.js";
+
+app.use('/api/auth', authRoutes);
+app.use('/api', clientRoutes);
+
+/**
  * 404 Error Handler
  */
 
