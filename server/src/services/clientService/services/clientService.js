@@ -257,7 +257,7 @@ export default class ClientService {
      * @returns {Array} - The list of API keys
      */
 
-    async clientApiKeys(clientId, user) {
+    async getClientApiKeys(clientId, user) {
         try {
             if (!canUserAccessClient(user, clientId)) {
                 throw new AppError("Access denied", 403);
@@ -280,4 +280,24 @@ export default class ClientService {
             throw error;
         }
     }
+
+    async getClientByApiKeys(apiKey){
+        try{
+            const key = await this.apiKeyRepository.findByKeyValue(apiKey);
+            if(!key || key.isExpired()){
+                return null;
+            }
+
+            const client = key.clientId;
+
+            return {
+                client,
+                apiKey: key
+            }
+        } catch(error){
+            logger.error("Error finding client by api key in database", error);
+            throw error;
+        }
+    }
+
 }
