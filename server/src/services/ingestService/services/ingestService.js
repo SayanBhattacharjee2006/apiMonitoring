@@ -30,7 +30,7 @@ export class IngestService {
             const event = {
                 eventId: uuidv4(),
                 timestamp: new Date(),
-                serverName: hitData.serviceName,
+                serviceName: hitData.serviceName,
                 endpoint: hitData.endpoint,
                 method: hitData.method.toUpperCase(),
                 statusCode: Number.parseInt(hitData.statusCode, 10),
@@ -72,7 +72,7 @@ export class IngestService {
                     timestamp: event.timestamp,
                 };
 
-        } catch (err) {
+        } catch (error) {
             logger.error('Error ingesting API hit:', error);
             throw error;
         }
