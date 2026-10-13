@@ -73,10 +73,13 @@ app.use("/", (req, res) => {
 import authRoutes from "./services/authService/routes/authRoute.js";
 import clientRoutes from "./services/clientService/routes/clientRoutes.js";
 import ingestRoutes from "./services/ingestService/routes/ingestRoutes.js";
+import analyticsRoutes from "./services/analyticService/routes/analyticsRoutes.js";
 
 app.use('/api/auth', authRoutes);
 app.use('/api/hit', ingestRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api', clientRoutes);
+
 
 /**
  * 404 Error Handler
