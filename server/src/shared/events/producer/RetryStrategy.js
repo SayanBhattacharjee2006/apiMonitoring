@@ -72,7 +72,7 @@ export class RetryStrategy{
 
     delay(attempt){
         const exponential = this.baseDelayMs * Math.pow(2, attempt);
-        const capped = min(this.maxDelayMs, exponential);
+        const capped = Math.min(this.maxDelayMs, exponential);
 
         const jitterRange = capped * this.jitterFactor;
         const jitter = (Math.random() - 0.5) * jitterRange;

@@ -2,7 +2,7 @@ import config from "../../config/index.js";
 import logger from "../../config/logger.js";
 import rabbitmq from "../../config/rabbitmq.js";
 
-import { CircuitBreaker } from "./circuitBreaker.js";
+import { CircuitBreaker } from "./CircuitBreaker.js";
 import { ConfirmChannelManager } from "./ConfirmChannelManager.js";
 import { RetryStrategy } from "./RetryStrategy.js";
 import { EventProducer } from "./eventProducer.js";

@@ -1,6 +1,6 @@
 import MongoClientRepository from "../repositories/ClientRepository.js";
 import MongoApiKeyRepository from "../repositories/ApiKeyRepository.js";
-import { ClientService } from "../services/clientService.js";
+import ClientService from "../services/clientService.js";
 import { ClientController } from "../controllers/clientController.js";
 import MongoUserRepository from "../../authService/repositories/UserRepository.js";
 import authContainer from "../../authService/Dependencies/dependencies.js";

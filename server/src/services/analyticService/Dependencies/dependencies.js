@@ -1,9 +1,9 @@
 import clientRepository from "../../../services/clientService/repositories/ClientRepository.js";
 import processorContainer from "../../../services/processorService/Dependencies/dependencies.js";
-import authContainer from "../../../authService/Dependencies/dependencies.js";
+import authContainer from "../../authService/Dependencies/dependencies.js";
 
-import { AnalyticsService } from "../services/analyticService.js";
-import { AnalyticsController } from "../controllers/analyticController.js";
+import { AnalyticService } from "../services/analyticService.js";
+import { AnalyticsController } from "../controller/analyticsController.js";
 
 
 /**
@@ -20,7 +20,7 @@ class Container {
                 processorContainer.repositories.metricsRepository,
         };
 
-        const analyticService = new AnalyticsService({
+        const analyticService = new AnalyticService({
             metricRepo: repositories.metricsRepository,
         });
         

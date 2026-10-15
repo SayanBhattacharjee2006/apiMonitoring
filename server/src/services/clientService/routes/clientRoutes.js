@@ -14,4 +14,3 @@ router.post('/admin/client/:clientId/api/keys', (req, res, next) => clientContro
 router.get('/admin/client/:clientId/api/keys', (req, res, next) => clientController.getClientApiKeys(req, res, next))
 
 export default router
-

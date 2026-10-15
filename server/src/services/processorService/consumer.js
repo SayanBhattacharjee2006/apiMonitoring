@@ -3,7 +3,7 @@ import postgres from "../../shared/config/postgres.js";
 import rabbitmq from "../../shared/config/rabbitmq.js";
 import mongo from "../../shared/config/mongodb.js";
 import logger from "../../shared/config/logger.js";
-import config from "../../shared/config/config.js";
+import config from "../../shared/config/index.js";
 import ProcessorContainer from "./Dependencies/dependencies.js";
 import { EVENT_TYPES } from "../../shared/events/eventsContracts.js";
 import {
@@ -77,12 +77,12 @@ class EventConsumer {
             });
 
             this._logger.info(
-                `started consuming from queue: ${this._config.rabbitmq.queue}`,
+                `started consuming from queue: ${this._config.rabbitMQ.queue}`,
             );
             this.isRunning = true;
 
             await this._channel.consume(
-                this._config.rabbitmq.queue,
+                this._config.rabbitMQ.queue,
                 async (msg) => {
                     if (!msg) {
                         await this._handleMessage(msg);
@@ -159,7 +159,7 @@ class EventConsumer {
             });
 
             await this._channel.consume(
-                this._config.rabbitmq.queue,
+                this._config.rabbitMQ.queue,
                 async (msg) => {
                     if (!msg) {
                         await this._handleMessage(msg);
@@ -275,8 +275,8 @@ class EventConsumer {
         this._circuitBreaker.onfailure();
         this._stats.failed++;
 
-        const eventType = messageData.type;
-        const poisonCount = (this.poisonMessages.get(messageType) || 0) + 1;
+        const eventType = messageData?.type ?? "unknown";
+        const poisonCount = (this.poisonMessages.get(eventType) || 0) + 1;
         this.poisonMessages.set(messageType, poisonCount);
 
         if (poisonCount >= 10) {
@@ -304,7 +304,7 @@ class EventConsumer {
     }
 
     async _sendToDlq(msg, error, reason) {
-        const dlqName = `${this._config.rabbitmq.queue}.dlq`;
+        const dlqName = `${this._config.rabbitMQ.queue}.dlq`;
         this._channel.sendToQueue(dlqName, msg.content, {
             ...msg.properties,
             persistent: true,
@@ -313,7 +313,7 @@ class EventConsumer {
                 "x-dlq-reason": reason,
                 "x-dlq-error": error.message,
                 "x-dlq-timestamp": new Date().toISOString(),
-                "x-original-queue": `${this._config.rabbitmq.queue}`,
+                "x-original-queue": `${this._config.rabbitMQ.queue}`,
             },
         });
 
@@ -329,13 +329,13 @@ class EventConsumer {
             "x-retry-count": retryCount + 1,
             "x-timestamp": new Date().toISOString(),
             "x-retry-delay": delay,
-            "x-original-queue": `${this._config.rabbitmq.queue}`,
+            "x-original-queue": `${this._config.rabbitMQ.queue}`,
         };
 
         setTimeout( async () => {
             try {
                 this._channel.sendToQueue(
-                    this._config.rabbitmq.queue,
+                    this._config.rabbitMQ.queue,
                     msg.content,
                     {
                         ...msg.properties,
@@ -374,8 +374,8 @@ class EventConsumer {
 }
 
 const retryStrategy = new RetryStrategy({
-    maxRetries: config.rabbitmq.retryAttempts,
-    baseDelayMs: config.rabbitmq.retryDelay,
+    maxRetries: config.rabbitMQ.retryAttempts,
+    baseDelayMs: config.rabbitMQ.retryDelay,
     maxDelayMs: 30_000,
     jitterFactor: 0.3,
 });

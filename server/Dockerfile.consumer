@@ -16,4 +16,4 @@ COPY . .
 RUN mkdir -p logs
 
 # Start the consumer (correct path)
-CMD ["node", "src/services/processor/consumer.js"]
+CMD ["node", "src/services/processorService/consumer.js"]

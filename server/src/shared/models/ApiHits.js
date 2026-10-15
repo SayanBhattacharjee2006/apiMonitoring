@@ -87,7 +87,7 @@ apiHitSchema.index({
     timestamp: -1,
 });
 
-apiKeySchema.index(
+apiHitSchema.index(
     {
         timestamp: 1,
     },

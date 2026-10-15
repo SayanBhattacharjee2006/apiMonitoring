@@ -1,4 +1,4 @@
-import { BaseRepository } from '../BaseRepository.js';
+import { BaseRepository } from './BaseRepository.js';
 
 export class ApiHitRepository extends BaseRepository {
     constructor({model, logger : l} = {}){

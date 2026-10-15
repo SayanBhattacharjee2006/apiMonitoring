@@ -3,7 +3,7 @@ import { MetricsRepository } from "../repository/MetricsRepository.js";
 import { ProcessorService } from "../service/ProcessorService.js";
 
 
-import ApiHit from "../../../shared/models/ApiHit.js";
+import ApiHit from "../../../shared/models/ApiHits.js";
 import postgres from "../../../shared/config/postgres.js";
 import logger from "../../../shared/config/logger.js";
 
