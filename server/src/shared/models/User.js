@@ -61,14 +61,14 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['super_admin', 'client_admin', 'client_viewer'],
-        default: 'client_viewer'
+        enum: ['super-admin', 'client-admin', 'client-viewer'],
+        default: 'client-viewer'
     },
     clientId: {
         type: mongoose.Schema.Types.ObjectId, // 123
         ref: "Client",
         required: function () {
-            return this.role !== "super_admin"
+            return this.role !== "super-admin"
         }
     },
     isActive: {

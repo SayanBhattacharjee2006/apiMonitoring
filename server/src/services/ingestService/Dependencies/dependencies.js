@@ -20,7 +20,7 @@ class Container {
         }
 
         const controllers = {
-            ingestControllers : new IngestController(services)
+            ingestController : new IngestController(services)
         }
 
         return {

@@ -175,7 +175,7 @@ export class MetricsRepository extends BaseRepository {
 
             params.push(safeLimit);
 
-            const result = this._query(query, params);
+            const result = await this._query(query, params);
             return result.rows;
         } catch (err) {
             this.logger.error("Error fetching top endpoints:", err);
@@ -216,7 +216,7 @@ export class MetricsRepository extends BaseRepository {
                 params.push(endTime);
             }
 
-            const result = this._query(query, params);
+            const result = await this._query(query, params);
             return result.rows[0] || {};
         } catch (err) {
             this.logger.error("Error fetching overall stats:", err);

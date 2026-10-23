@@ -89,7 +89,7 @@ export class ProcessorService {
                 timeBucket,
             };
 
-            await this.metricsRepository.upsertMetrics(metricsData);
+            await this.metricsRepository.upsertEndpointMetrics(metricsData);
               logger.info('Metrics updated successfully', {
                 eventId: eventData.eventId,
             });

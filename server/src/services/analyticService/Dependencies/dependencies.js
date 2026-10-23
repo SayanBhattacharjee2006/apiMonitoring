@@ -14,7 +14,7 @@ import { AnalyticsController } from "../controller/analyticsController.js";
 
 class Container {
     static init(){
-        repositories = {
+        const repositories = {
             clientRepository,
             metricsRepository:
                 processorContainer.repositories.metricsRepository,

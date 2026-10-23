@@ -27,12 +27,12 @@ class Container {
 
         // Initialize Services with the required dependencies
         const services = {
-            clientServices : new ClientService({
-                clientService: repositories.clientRepository,
-                apiKeyService: repositories.apiKeyRepository,
-                userService: repositories.authRepository
-            })
-        }
+            clientServices: new ClientService({
+                clientRepository: repositories.clientRepository,
+                apiKeyRepository: repositories.apiKeyRepository,
+                userRepository: repositories.authRepository
+            }),
+        };
         // Initialize Controller with the required services
         const controllers = {
             clientController : new ClientController(services.clientServices, authContainer.services.authService)

@@ -1,4 +1,4 @@
-
+import ResponseFormatter from "../utils/responseFormatter.js";
 
 /**
  * Middleware to validate request bodies against a schema.

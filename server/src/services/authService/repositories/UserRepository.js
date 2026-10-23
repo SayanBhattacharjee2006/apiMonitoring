@@ -95,7 +95,7 @@ class UserRepository extends BaseRepository {
     async findActiveUsers() {
         try {
             const user = await this.model
-                .findOne({ isActive: true })
+                .find({ isActive: true })
                 .select("-password");
             return user;
         } catch (error) {

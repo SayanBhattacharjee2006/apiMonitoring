@@ -33,7 +33,7 @@ export class AuthController {
             const { token, user } =
                 await this.authService.onboardSuperAdmin(superAdminData);
 
-            res.cookies.set("authToken", token, {
+            res.cookie("authToken", token, {
                 httpOnly: config.cookie.httpOnly,
                 secure: config.cookie.secure,
                 expires: config.cookie.expires,
@@ -72,7 +72,7 @@ export class AuthController {
 
             const { token, user } = await this.authService.register(userData);
 
-            res.cookies.set("authToken", token, {
+            res.cookie("authToken", token, {
                 httpOnly: config.cookie.httpOnly,
                 secure: config.cookie.secure,
                 expires: config.cookie.expires,
@@ -106,7 +106,7 @@ export class AuthController {
                 username,
                 password,
             );
-            res.cookies.set("authToken", token, {
+            res.cookie("authToken", token, {
                 httpOnly: config.cookie.httpOnly,
                 secure: config.cookie.secure,
                 expires: config.cookie.expires,

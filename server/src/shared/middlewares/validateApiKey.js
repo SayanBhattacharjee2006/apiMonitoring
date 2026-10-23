@@ -41,7 +41,7 @@ const validateApiKey = async (req, res, next) => {
 
         const { client, apiKey: apiKeyObj } = result;
 
-        if (!client.isAcive) {
+        if (!client.isActive) {
             logger.warn("Inactive client attempted API access", {
                 path: req.path,
                 ip: req.ip,
@@ -81,7 +81,7 @@ const validateApiKey = async (req, res, next) => {
 
         next();
     } catch (err) {
-        logger.error("Error validating API key:", error);
+        logger.error("Error validating API key:", err);
         
         return res
             .status(500)

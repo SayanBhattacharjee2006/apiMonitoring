@@ -35,7 +35,7 @@ export class IngestController {
             const hitData = {
                 ...req.body,
                 clientId: req.client._id,
-                apiKeyId: req.apikey._id,
+                apiKeyId: req.apiKey._id,
                 ip: req.ip || req.connection.remoteAddress,
                 userAgent: req.headers["user-agent"] || "",
             };

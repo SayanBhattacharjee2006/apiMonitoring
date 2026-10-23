@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser"
 import config from "./shared/config/index.js";
 import logger from "./shared/config/logger.js";
 import mongodb from "./shared/config/mongodb.js";
@@ -23,6 +24,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); //this is used to parse urlencoded bodies
+app.use(cookieParser());
 
 app.use((req, res, next) => {
     logger.info(`${req.method} ${req.path}`, {
@@ -48,7 +50,22 @@ app.get("/health", (req, res) => {
     );
 });
 
-app.use("/", (req, res) => {
+
+/**
+ * Api routes
+*/
+
+import authRoutes from "./services/authService/routes/authRoute.js";
+import clientRoutes from "./services/clientService/routes/clientRoutes.js";
+import ingestRoutes from "./services/ingestService/routes/ingestRoutes.js";
+import analyticsRoutes from "./services/analyticService/routes/analyticsRoutes.js";
+
+app.use('/api/auth', authRoutes);
+app.use('/api/hit', ingestRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api', clientRoutes);
+
+app.get("/", (req, res) => {
     res.status(200).json(
         ResponseFormatter.success(
             {
@@ -65,21 +82,6 @@ app.use("/", (req, res) => {
         ),
     );
 });
-
-/**
- * Api routes
- */
-
-import authRoutes from "./services/authService/routes/authRoute.js";
-import clientRoutes from "./services/clientService/routes/clientRoutes.js";
-import ingestRoutes from "./services/ingestService/routes/ingestRoutes.js";
-import analyticsRoutes from "./services/analyticService/routes/analyticsRoutes.js";
-
-app.use('/api/auth', authRoutes);
-app.use('/api/hit', ingestRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api', clientRoutes);
-
 
 /**
  * 404 Error Handler

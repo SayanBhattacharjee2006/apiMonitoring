@@ -8,7 +8,7 @@ import authorize from "../../../shared/middlewares/authorization.js";
 import { APPLICATION_ROLES } from "../../../shared/constants/roles.js";
 
 const router = express.Router();
-const {controller} = dependencies;
+const {controllers} = dependencies;
 const authController = controller.authController;
 
 router.post(

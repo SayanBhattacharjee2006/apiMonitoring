@@ -76,7 +76,7 @@ export class EventProducer {
 
         // Check circuit breaker before attempting to publish the event. If the circuit is open, we reject the publish attempt immediately to avoid overwhelming the message broker and to allow it time to recover. This also helps to fail fast and provide quicker feedback to the caller about the unavailability of the service.
 
-        if (!this._circuitBreaker.allowRequest) {
+        if (!this._circuitBreaker.allowRequest()) {
             this._logger.info(
                 "[EventProducer] circuit breaker rejected publish",
                 {

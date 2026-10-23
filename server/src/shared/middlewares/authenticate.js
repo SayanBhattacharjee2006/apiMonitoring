@@ -15,8 +15,8 @@ const authenticate = async (req, res, next) => {
     try {
         let token = null;
 
-        if(req.cookies && req.cookies.authToken){
-            token = req.cookies.token;
+        if(req?.cookies && req.cookies.authToken){
+            token = req.cookies.authToken;
         }
 
         if(!token){
@@ -27,7 +27,7 @@ const authenticate = async (req, res, next) => {
                     )
         }
 
-        const decoded = jwt.verify(token, config.JWT_SECRET);
+        const decoded = jwt.verify(token, config.jwt.secret);
 
         const {userId, role, email, username, clientId} = decoded;
 

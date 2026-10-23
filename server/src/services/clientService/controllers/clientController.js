@@ -82,7 +82,7 @@ export class ClientController {
             return res
                 .status(201)
                 .json(
-                    ResponseFormatter(
+                    ResponseFormatter.success(
                         clientUser,
                         "Client user created successfully",
                         201,
@@ -112,7 +112,7 @@ export class ClientController {
             return res
                 .status(201)
                 .json(
-                    ResponseFormatter(
+                    ResponseFormatter.success(
                         apikey,
                         "API key created successfully",
                         201,
@@ -142,7 +142,7 @@ export class ClientController {
             return res
                 .status(200)
                 .json(
-                    ResponseFormatter(
+                    ResponseFormatter.success(
                         apikeys,
                         "API keys fetched successfully",
                         200,

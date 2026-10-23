@@ -84,7 +84,7 @@ class EventConsumer {
             await this._channel.consume(
                 this._config.rabbitMQ.queue,
                 async (msg) => {
-                    if (!msg) {
+                    if (msg!== null) {
                         await this._handleMessage(msg);
                     }
                 },

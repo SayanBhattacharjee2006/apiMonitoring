@@ -95,7 +95,7 @@ export class IngestService {
 
         const missingFields = requiredFields.filter((field) => !hitData[field]);
 
-        if (missingFields.size() > 0) {
+        if (missingFields.length > 0) {
             throw new AppError(
                 `Missing required fields: ${missingFields.join(",")}`,
                 400,

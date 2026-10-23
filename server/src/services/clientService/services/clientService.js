@@ -20,7 +20,7 @@ export default class ClientService {
      * @param {Object} dependencies.userRepository - The user repository instance
      * @throws Will throw an error if any of the required dependencies are missing
      */
-
+ 
     constructor(dependencies) {
         if (!dependencies) {
             throw new Error("Dependencies are required");
@@ -131,14 +131,14 @@ export default class ClientService {
     /**
      * Create a new client user for a specific client
      * @param {String} clientId - The client ID
-     * @param {Object} userData - The user data
      * @param {Object} adminUser - The admin user creating the client user
+     * @param {Object} userData - The user data
      * @returns {Object} - The created client user
      */
 
-    async createClientUser(clientId, userData, adminUser) {
+    async createClientUser(clientId, adminUser, userData) {
         try {
-            if (!canUserAccessClient(adminUser, clientId)) {
+            if (!this.canUserAccessClient(adminUser, clientId)) {
                 throw new AppError("Access denied", 403);
             }
 
@@ -153,7 +153,7 @@ export default class ClientService {
                 throw new AppError("Invalid client role", 400);
             }
 
-            client = await this.clientRepository.findById(clientId);
+            const client = await this.clientRepository.findById(clientId);
 
             if (!client) {
                 throw new AppError("Client not found", 404);
@@ -211,14 +211,14 @@ export default class ClientService {
                 throw new AppError("Client not found", 404);
             }
 
-            if (!canUserAccessClient(user, clientId)) {
+            if (!this.canUserAccessClient(user, clientId)) {
                 throw new AppError("Access denied", 403);
             }
 
             if (
                 !(
-                    role === APPLICATION_ROLES.CLIENT_ADMIN ||
-                    role === APPLICATION_ROLES.SUPER_ADMIN
+                    user.role === APPLICATION_ROLES.CLIENT_ADMIN ||
+                    user.role === APPLICATION_ROLES.SUPER_ADMIN
                 )
             ) {
                 throw new AppError("Access denied", 403);
@@ -227,7 +227,7 @@ export default class ClientService {
             const { name, description, environment = "production" } = keyData;
 
             const keyId = uuidv4();
-            const keyValue = this.generateApiKey(keyId);
+            const keyValue = this.generateApiKey();
 
             const apikey = await this.apiKeyRepository.create({
                 keyId,
@@ -259,7 +259,7 @@ export default class ClientService {
 
     async getClientApiKeys(clientId, user) {
         try {
-            if (!canUserAccessClient(user, clientId)) {
+            if (!this.canUserAccessClient(user, clientId)) {
                 throw new AppError("Access denied", 403);
             }
 
@@ -281,7 +281,7 @@ export default class ClientService {
         }
     }
 
-    async getClientByApiKeys(apiKey){
+    async getClientByApiKey(apiKey){
         try{
             const key = await this.apiKeyRepository.findByKeyValue(apiKey);
             if(!key || key.isExpired()){

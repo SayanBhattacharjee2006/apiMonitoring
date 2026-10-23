@@ -49,8 +49,8 @@ export function createEventProducer(overrides = {}) {
     const retryStrategy =
         overrides.retryStrategy ??
         new RetryStrategy({
-            maxRetries: config.rabbitmq.retryAttempts,
-            baseDelayMs: config.rabbitmq.retryDelay,
+            maxRetries: config.rabbitMQ.retryAttempts,
+            baseDelayMs: config.rabbitMQ.retryDelay,
             maxDelayMs: 5_000,
             jitterFactor: 0.3,
         });
