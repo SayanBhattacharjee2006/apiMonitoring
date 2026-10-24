@@ -66,7 +66,7 @@ export class AnalyticService {
             const { limit = 10, startTime } = options;
             const parsedStartTime = startTime ? new Date(startTime) : null;
 
-            const endpoints = await this.metricRepo.getTopEndpoints(
+            const endpoints = await this.metricRepo.getTopEndPoints(
                 clientId,
                 limit,
                 parsedStartTime,
@@ -82,7 +82,7 @@ export class AnalyticService {
                 errorRate: Number.parseFloat(
                     (Number.parseInt(endpoint.error_hits) /
                         Number.parseInt(endpoint.total_hits)) *
-                        100,
+                    100,
                 ).toFixed(2),
             }));
         } catch (error) {
