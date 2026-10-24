@@ -1,6 +1,7 @@
 import User from "../../../shared/models/User.js";
 import logger from "../../../shared/config/logger.js";
 import BaseRepository from "./BaseRepository.js";
+import { APPLICATION_ROLES } from "../../../shared/constants/roles.js";
 
 /**
  * MongoDB implementation of the UserRepository.
@@ -19,7 +20,7 @@ class UserRepository extends BaseRepository {
     async create(userData) {
         try {
             let data = { ...userData };
-            if (data.role == "super_admin" && !data.permissions) {
+            if (data.role == APPLICATION_ROLES.SUPER_ADMIN && !data.permissions) {
                 data.permissions = {
                     canCreateApiKeys: true,
                     canManageUsers: true,

@@ -28,7 +28,7 @@ class MongoApiKeyRepository extends BaseApiKeyRepository {
             return apiKey;
         } catch (error) {
             logger.error("Error creating api key in database", error);
-            throw new error();
+            throw error;
         }
     }
 
@@ -51,7 +51,7 @@ class MongoApiKeyRepository extends BaseApiKeyRepository {
             return apiKey;
         } catch (error) {
             logger.error("Error finding apikey by value", error);
-            throw new error();
+            throw error;
         }
     }
 
@@ -79,7 +79,7 @@ class MongoApiKeyRepository extends BaseApiKeyRepository {
                 "Error finding apikeys by clientId in database",
                 error,
             );
-            throw new error();
+            throw error;
         }
     }
 
@@ -96,11 +96,11 @@ class MongoApiKeyRepository extends BaseApiKeyRepository {
                 ...filters
             }
 
-            const count = await this.model.countDocument(query);
+            const count = await this.model.countDocuments(query);
             return count;
-        } catch(error){
+        } catch (error) {
             logger.error("Error counting the apikeys in database");
-            throw new error();
+            throw error;
         }
     }
 }

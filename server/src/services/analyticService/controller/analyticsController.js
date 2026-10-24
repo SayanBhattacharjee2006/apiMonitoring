@@ -20,7 +20,8 @@ export class AnalyticsController {
 
     async getStats(req, res, next) {
         try {
-            const { startTime, endTime } = req.body;
+            const startTime = req.query.startTime || req.body?.startTime;
+            const endTime = req.query.endTime || req.body?.endTime;
 
             const isAdmin = await this.ensureCanViewAnalytics(req);
             const finalClientId = await this.resolveFinalClient(req, isAdmin);
@@ -136,7 +137,8 @@ export class AnalyticsController {
 
     async getDashboard(req, res, next) {
         try {
-            const { startTime, endTime } = req.body;
+            const startTime = req.query.startTime || req.body?.startTime;
+            const endTime = req.query.endTime || req.body?.endTime;
 
             const isAdmin = await this.ensureCanViewAnalytics(req);
             const finalClientId = await this.resolveFinalClient(req, isAdmin);

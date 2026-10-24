@@ -109,6 +109,9 @@ export class EventProducer {
                     latencyMS,
                     endpoint: eventData.endpoint,
                 });
+
+                return true;
+
             } catch (error) {
                 this._logger.error("[EventProducer] publish attempt failed", {
                     eventId: eventData.eventId,
@@ -122,7 +125,7 @@ export class EventProducer {
                     this._retryStrategy.shouldRetry(attempt);
 
                 if (!canRetry) {
-                    this._circuitBreaker.onFailure();
+                    this._circuitBreaker.onfailure();
                     this._incrementMetric("failed");
 
                     if (!this._retryStrategy.shouldRetry(attempt)) {
@@ -191,14 +194,16 @@ export class EventProducer {
                 );
             }
 
-            const onDrain = () => {
-                channel.removeListener("drain", onDrain);
-                this._logger.debug("[EventProducer] drain event received", {
-                    eventId: eventData.eventId,
-                });
-            };
+            if (!written) {
+                const onDrain = () => {
+                    channel.removeListener("drain", onDrain);
+                    this._logger.debug("[EventProducer] drain event received", {
+                        eventId: eventData.eventId,
+                    });
+                };
 
-            channel.once("drain", onDrain);
+                channel.once("drain", onDrain);
+            }
         });
     }
 

@@ -14,22 +14,26 @@ import jwt from "jsonwebtoken";
 const authenticate = async (req, res, next) => {
     try {
         let token = null;
+        const authHeader = req.headers.authorizatiion;
 
-        if(req?.cookies && req.cookies.authToken){
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            token = authHeader.split(" ")[1];
+        }
+        else if (req.cookies && req.cookies.authToken) {
             token = req.cookies.authToken;
         }
 
-        if(!token){
+        if (!token) {
             return res
-                    .status(401)
-                    .json(
-                        ResponseFormatter.error("Authentication token is required", 401)
-                    )
+                .status(401)
+                .json(
+                    ResponseFormatter.error("Authentication token is required", 401)
+                )
         }
 
         const decoded = jwt.verify(token, config.jwt.secret);
 
-        const {userId, role, email, username, clientId} = decoded;
+        const { userId, role, email, username, clientId } = decoded;
 
         req.user = {
             userId,
@@ -41,28 +45,28 @@ const authenticate = async (req, res, next) => {
 
         next();
 
-    } catch(error){
+    } catch (error) {
         logger.error(
             "Failed to authenticate request:",
             {
-                error : error.message,
-                path : req.path
+                error: error.message,
+                path: req.path
             }
         )
 
-        if(error.name == "TokenExpiredError"){
+        if (error.name == "TokenExpiredError") {
             return res
-                    .status(401)
-                    .json(
-                        ResponseFormatter.error("Token expired", 401)
-                    )
+                .status(401)
+                .json(
+                    ResponseFormatter.error("Token expired", 401)
+                )
         }
 
         return res
-                .status(401)
-                .json(
-                    ResponseFormatter.error("Invalid token", 401)
-                )
+            .status(401)
+            .json(
+                ResponseFormatter.error("Invalid token", 401)
+            )
     }
 }
 

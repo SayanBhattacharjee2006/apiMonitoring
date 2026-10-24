@@ -84,7 +84,7 @@ class EventConsumer {
             await this._channel.consume(
                 this._config.rabbitMQ.queue,
                 async (msg) => {
-                    if (msg!== null) {
+                    if (msg !== null) {
                         await this._handleMessage(msg);
                     }
                 },
@@ -161,7 +161,7 @@ class EventConsumer {
             await this._channel.consume(
                 this._config.rabbitMQ.queue,
                 async (msg) => {
-                    if (!msg) {
+                    if (msg !== null) {
                         await this._handleMessage(msg);
                     }
                 },
@@ -259,7 +259,7 @@ class EventConsumer {
     async _processeMessage(messageData) {
         switch (messageData.type) {
             case EVENT_TYPES.API_HIT:
-                await this._processorService.processEvent(messageData);
+                await this._processorService.processEvent(messageData.data);
                 break;
 
             default:
@@ -277,7 +277,7 @@ class EventConsumer {
 
         const eventType = messageData?.type ?? "unknown";
         const poisonCount = (this.poisonMessages.get(eventType) || 0) + 1;
-        this.poisonMessages.set(messageType, poisonCount);
+        this.poisonMessages.set(eventType, poisonCount);
 
         if (poisonCount >= 10) {
             this._logger.error("Poison message pattern detected", {
@@ -332,7 +332,7 @@ class EventConsumer {
             "x-original-queue": `${this._config.rabbitMQ.queue}`,
         };
 
-        setTimeout( async () => {
+        setTimeout(async () => {
             try {
                 this._channel.sendToQueue(
                     this._config.rabbitMQ.queue,
@@ -342,6 +342,9 @@ class EventConsumer {
                         headers: retryHeaders,
                     },
                 );
+
+                this._channel.ack(msg);
+                this._stats.retried++;
 
                 this._logger.info("Message scheduled for retry", {
                     messageId: msg.properties.messageId,
@@ -354,8 +357,6 @@ class EventConsumer {
             }
         }, delay);
 
-        this._channel.ack(msg);
-        this._stats.retried++;
     }
 
     async stop() {
@@ -417,12 +418,12 @@ async function startConsumerWithRetry() {
             attempt++;
             logger.error(`Consumer start attempt ${attempt} failed:`, error);
 
-            if(!startupRetry.shouldRetry(attempt)) {
+            if (!startupRetry.shouldRetry(attempt)) {
                 logger.error('Max retries reached, exiting...');
                 process.exit(1);
             }
 
-            await startupRetry.wait(attempt-1);
+            await startupRetry.wait(attempt - 1);
         }
     }
 }

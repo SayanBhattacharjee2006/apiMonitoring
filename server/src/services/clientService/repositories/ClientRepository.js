@@ -1,4 +1,4 @@
-import BaseClientRepository from "./BaseClientRepository.js";
+import { BaseClientRepository } from "./BaseClientRepository.js";
 import logger from "../../../shared/config/logger.js";
 import Client from "../../../shared/models/Client.js";
 
@@ -29,7 +29,7 @@ class MongoClientRepository extends BaseClientRepository {
             return client;
         } catch (error) {
             logger.error("Error creating the client in database", error);
-            throw new error();
+            throw error;
         }
     }
 
@@ -41,6 +41,9 @@ class MongoClientRepository extends BaseClientRepository {
     async findById(clientId) {
         try {
             const client = await this.model.findById(clientId);
+
+            if (!client) return null;
+
             logger.info("Client details from MongoDB", {
                 clientId: client._id,
                 slug: client.slug,
@@ -51,7 +54,7 @@ class MongoClientRepository extends BaseClientRepository {
                 "Error finding the client by clientId from Database",
                 error,
             );
-            throw new error();
+            throw error;
         }
     }
 
@@ -70,7 +73,7 @@ class MongoClientRepository extends BaseClientRepository {
                 "Error finding the client by slug from Database",
                 error,
             );
-            throw new error();
+            throw error;
         }
     }
 
@@ -92,7 +95,7 @@ class MongoClientRepository extends BaseClientRepository {
             return clients;
         } catch (error) {
             logger.error("Error finding clients : ", error)
-            throw new error();
+            throw error;
         }
     }
 
@@ -107,7 +110,7 @@ class MongoClientRepository extends BaseClientRepository {
             return countClients;
         } catch (error) {
             logger.error("Error counting the clients:  ", error)
-            throw new error();
+            throw error;
         }
     }
 }

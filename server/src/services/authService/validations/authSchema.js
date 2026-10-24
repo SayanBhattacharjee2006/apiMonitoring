@@ -32,12 +32,15 @@ export const registrationSchema = {
     email: {
         required: true,
     },
-    role : {
+    role: {
         required: true,
-        custom : (value) => {
-            if(!value) return null;
+        custom: (value) => {
+            if (!value) return null;
             return isValidRole(value) ? null : 'Invalid role';
         }
+    },
+    clientId: {
+        required: true,
     }
 };
 
@@ -46,6 +49,6 @@ export const registrationSchema = {
  */
 
 export const loginSchema = {
-    username: {required: true},
-    password: {required: true}
+    username: { required: true },
+    password: { required: true }
 };

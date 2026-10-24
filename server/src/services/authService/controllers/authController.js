@@ -36,7 +36,7 @@ export class AuthController {
             res.cookie("authToken", token, {
                 httpOnly: config.cookie.httpOnly,
                 secure: config.cookie.secure,
-                expires: config.cookie.expires,
+                maxAge: config.cookie.expires,
             });
 
             return res
@@ -62,12 +62,13 @@ export class AuthController {
 
     async register(req, res, next) {
         try {
-            const { username, password, email, role } = req.body;
+            const { username, password, email, role, clientId } = req.body;
             const userData = {
                 username,
                 password,
                 email,
                 role: role || APPLICATION_ROLES.CLIENT_VIEWER,
+                clientId,
             };
 
             const { token, user } = await this.authService.register(userData);
@@ -75,7 +76,7 @@ export class AuthController {
             res.cookie("authToken", token, {
                 httpOnly: config.cookie.httpOnly,
                 secure: config.cookie.secure,
-                expires: config.cookie.expires,
+                maxAge: config.cookie.expires,
             });
 
             return res
@@ -109,7 +110,7 @@ export class AuthController {
             res.cookie("authToken", token, {
                 httpOnly: config.cookie.httpOnly,
                 secure: config.cookie.secure,
-                expires: config.cookie.expires,
+                maxAge: config.cookie.expires,
             });
 
             return res

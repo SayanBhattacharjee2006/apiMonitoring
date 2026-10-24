@@ -7,9 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "processor": "node src/services/processorService/consumer.js",
-    "init": "node init-system.js",
-    "init:env": "node init-system.js --generate-env"
+    "processor": "node src/services/processorService/consumer.js"
   },
   "keywords": [
     "api",

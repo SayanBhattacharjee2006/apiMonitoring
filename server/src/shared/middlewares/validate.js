@@ -13,8 +13,8 @@ import ResponseFormatter from "../utils/responseFormatter.js";
  * }
  */
 
-const validate = (schema) => (req,res,next) => {
-    if(!schema){
+const validate = (schema) => (req, res, next) => {
+    if (!schema) {
         return next();
     }
 
@@ -24,24 +24,24 @@ const validate = (schema) => (req,res,next) => {
     Object.entries(schema).forEach(([field, rules]) => {
         const value = body[field];
 
-        if(rules.required && (value == null || value === "" || value === undefined)){
+        if (rules.required && (value == null || value === "" || value === undefined)) {
             errors.push(`${field} is required`);
         }
 
-        if(rules.minLength && typeof value == 'string' && value.length < rules.minLength){
+        if (rules.minLength && typeof value == 'string' && value.length < rules.minLength) {
             errors.push(`${field} must be at least ${rules.minLength} characters long`);
         }
 
-        if(rules.custom && typeof value == 'function'){
+        if (rules.custom && typeof rules.custom == 'function') {
             const customError = rules.custom(value);
-            if(customError){
+            if (customError) {
                 errors.push(customError);
             }
         }
     })
 
 
-    if(errors.length){
+    if (errors.length) {
         return res
             .status(400)
             .json(ResponseFormatter.error("Validation Error", 400, errors));

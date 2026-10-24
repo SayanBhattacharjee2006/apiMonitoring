@@ -59,7 +59,7 @@ export class IngestService {
                 };
             }
 
-            logger.warn("API hit rejected by circuit breaker", {
+            logger.info("API hit queued for processing", {
                 eventId: event.eventId,
                 endpoint: event.endpoint,
                 method: event.method,
@@ -67,10 +67,10 @@ export class IngestService {
             });
 
             return {
-                    eventId: event.eventId,
-                    status: "queued",
-                    timestamp: event.timestamp,
-                };
+                eventId: event.eventId,
+                status: "queued",
+                timestamp: event.timestamp,
+            };
 
         } catch (error) {
             logger.error('Error ingesting API hit:', error);

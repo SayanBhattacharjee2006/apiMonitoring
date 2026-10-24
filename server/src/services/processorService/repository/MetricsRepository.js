@@ -35,14 +35,14 @@ export class MetricsRepository extends BaseRepository {
                total_hits = endpoint_metrics.total_hits + EXCLUDED.total_hits,
                error_hits = endpoint_metrics.error_hits + EXCLUDED.error_hits,
                avg_latency = (
-                (endpoint_metrics.avg_latency * endpoint_metrics.total_hits) + (EXCLUDED.avg_latency * EXCLUDED.total_hits) / (endpoint_metrics.total_hits + EXCLUDED.total_hits) 
-               ),
+                (endpoint_metrics.avg_latency * endpoint_metrics.total_hits) + (EXCLUDED.avg_latency * EXCLUDED.total_hits)) / (endpoint_metrics.total_hits + EXCLUDED.total_hits) 
+               ,
                 min_latency = LEAST(endpoint_metrics.min_latency, EXCLUDED.min_latency),
                 max_latency = GREATEST(endpoint_metrics.max_latency, EXCLUDED.max_latency),
                 updated_at = CURRENT_TIMESTAMP
             `;
 
-            this._query(query, [
+            await this._query(query, [
                 clientId,
                 serviceName,
                 endpoint,
@@ -74,7 +74,7 @@ export class MetricsRepository extends BaseRepository {
             const safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT); // Ensure limit is between 1 and MAX_LIMIT
             const safeOffset = Math.max(offset, 0); // Ensure offset is non-negative
 
-            const query = `
+            let query = `
             SELECT
                 service_name,
                 endpoint,

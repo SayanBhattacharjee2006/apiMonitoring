@@ -49,26 +49,26 @@ export class ConfirmChannelManager extends EventEmitter {
     }
 
 
-     /**
-     * Establishes a new RabbitMQ confirm channel. If a channel is already being established, it waits for that process to complete. 
-     * If the channel is successfully established, it resolves any pending promises waiting for the channel. If an error occurs during channel creation, it rejects any pending promises and throws the error.
-     * @returns {Promise<any>} A promise that resolves to a RabbitMQ confirm channel.
-     * @throws Will throw an error if the channel cannot be established.
-     */
+    /**
+    * Establishes a new RabbitMQ confirm channel. If a channel is already being established, it waits for that process to complete. 
+    * If the channel is successfully established, it resolves any pending promises waiting for the channel. If an error occurs during channel creation, it rejects any pending promises and throws the error.
+    * @returns {Promise<any>} A promise that resolves to a RabbitMQ confirm channel.
+    * @throws Will throw an error if the channel cannot be established.
+    */
 
-     async _connect(){
+    async _connect() {
         this._isConnecting = true;
 
-        try{
+        try {
 
             let connection;
 
-            if(this._rabbitmq.connection){
+            if (this._rabbitmq.connection) {
                 connection = this._rabbitmq.connection;
-            }else {
+            } else {
                 await this._rabbitmq.connect();
 
-                if(!this._rabbitmq.connection){
+                if (!this._rabbitmq.connection) {
                     throw new Error("failed to obtain rabbitmq connection");
                 }
 
@@ -85,7 +85,7 @@ export class ConfirmChannelManager extends EventEmitter {
                 this._logger.warn('[ChannelManager] confirm channel closed unexpectedly');
                 this._channel = null;
             })
-            
+
             confirmChannel.on("error", (err) => {
                 this._logger.error('[ChannelManager] confirm channel error', {
                     error: err.message,
@@ -93,25 +93,34 @@ export class ConfirmChannelManager extends EventEmitter {
                     code: err.code,
                 });
                 this._channel = null;
-                this.emit('error',err);
+                this.emit('error', err);
             })
 
 
             this._channel = confirmChannel;
             this._logger.info('[ChannelManager] confirm channel ready');
 
-            this._connectWaiters.forEach(({resolve}) => resolve(this._channel));
+            this._connectWaiters.forEach(({ resolve }) => resolve(this._channel));
             this._connectWaiters = [];
 
             return this._channel;
 
         } catch (error) {
-            this._connectWaiters.forEach(({reject}) => reject(error));
+            this._connectWaiters.forEach(({ reject }) => reject(error));
             this._connectWaiters = []
             this._logger.error("Failed to connect to RabbitMQ:", error);
             throw error;
         } finally {
             this._isConnecting = false;
         }
-     }
+    }
+
+
+    async close() {
+        if (this._channel) {
+            await this._channel.close();
+            this._channel = null;
+        }
+    }
+
 }

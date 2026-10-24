@@ -1,7 +1,7 @@
 import express from "express";
 import dependencies from "../Dependencies/dependencies.js";
 import validate from "../../../shared/middlewares/validate.js";
-import { onboardSuperAdminSchema, registrationSchema } from "../validations/authSchema.js";
+import { onboardSuperAdminSchema, registrationSchema, loginSchema } from "../validations/authSchema.js";
 import requestLogger from "../../../shared/middlewares/requestLogger.js";
 import authenticate from "../../../shared/middlewares/authenticate.js";
 import authorize from "../../../shared/middlewares/authorization.js";
@@ -9,7 +9,7 @@ import { APPLICATION_ROLES } from "../../../shared/constants/roles.js";
 
 const router = express.Router();
 const {controllers} = dependencies;
-const authController = controller.authController;
+const authController = controllers.authController;
 
 router.post(
     '/onboard-super-admin',
@@ -31,7 +31,7 @@ router.post(
 router.post(
     "/login",
     requestLogger,
-    validate(registrationSchema),
+    validate(loginSchema),
     (req, res, next) => authController.login(req, res, next)
 )
 

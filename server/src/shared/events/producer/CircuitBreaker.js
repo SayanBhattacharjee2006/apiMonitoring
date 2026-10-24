@@ -40,7 +40,7 @@ export class CircuitBreaker {
 
         this._state = circuitState.CLOSED;
         this._failures = 0;
-        this._halpOpenAttempts = 0;
+        this._halfOpenAttempts = 0;
         this._halfOpenSuccess = 0;
         this._lastFailureTime = 0;
     }
@@ -65,7 +65,7 @@ export class CircuitBreaker {
     _transitionTo(newState) {
         const prevState = this._state;
         this._state = newState;
-        this.logger.info(`[CircuitBreaker] ${prev} => ${newState}`);
+        this.logger.info(`[CircuitBreaker] ${prevState} => ${newState}`);
 
         if (newState === circuitState.HALF_OPEN) {
             this._halfOpenAttempts = 0;
@@ -120,10 +120,10 @@ export class CircuitBreaker {
      */
 
     allowRequest() {
-        const currentState = this._state;
+        const currentState = this.state;
 
         this.logger.debug("[CircuitBreaker] allowRequest check", {
-            state: current,
+            state: currentState,
             halfOpenAttempts: this._halfOpenAttempts,
             halfOpenMaxAttempts: this.halfOpenMaxAttempts,
             halfOpenSuccesses: this._halfOpenSuccess,
@@ -165,7 +165,7 @@ export class CircuitBreaker {
     onSuccess() {
         this.logger.info("[CircuitBreaker] success recorded", {
             state: this._state,
-            halfOpenSuccesses: this._halfOpenSuccesses,
+            halfOpenSuccesses: this._halfOpenSuccess,
             halfOpenMaxAttempts: this.halfOpenMaxAttempts,
             failures: this._failures,
         });
@@ -173,16 +173,16 @@ export class CircuitBreaker {
         if (this._state === circuitState.HALF_OPEN) {
             this._halfOpenSuccess++;
             this.logger.info(
-                `[CircuitBreaker] HALF_OPEN success ${this._halfOpenSuccesses}/${this.halfOpenMaxAttempts}`,
+                `[CircuitBreaker] HALF_OPEN success ${this._halfOpenSuccess}/${this.halfOpenMaxAttempts}`,
             );
-            if (this._halfOpenSuccesses >= this.halfOpenMaxAttempts) {
-                if (this._halfOpenSuccess >= this.halfOpenMaxAttempts) {
-                    this._reset();
-                    this.logger.info(
-                        "[CircuitBreaker] reset to CLOSED after successful half-open probes",
-                    );
-                }
+
+            if (this._halfOpenSuccess >= this.halfOpenMaxAttempts) {
+                this._reset();
+                this.logger.info(
+                    "[CircuitBreaker] reset to CLOSED after successful half-open probes",
+                );
             }
+
         }
 
         if (this._failures > 0) {
@@ -236,7 +236,7 @@ export class CircuitBreaker {
             failures: this._failures,
             lastFailureTime: this._lastFailureTime,
             halfOpenAttempts: this._halfOpenAttempts,
-            halfOpenSuccesses: this._halfOpenSuccesses,
+            halfOpenSuccesses: this._halfOpenSuccess,
             cooldownMs: this.cooldownMs,
             failureThreshold: this.failureThreshold,
         };
