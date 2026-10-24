@@ -21,11 +21,11 @@ const authorize =
                         .json(ResponseFormatter.error("Forbidden", 403));
                 }
 
-                if (allowedRoles.length === 0) {
+                if (roles.length === 0) {
                     return next();
                 }
 
-                if (!allowedRoles.includes(req.user.role)) {
+                if (!roles.includes(req.user.role)) {
                     return res
                         .status(403)
                         .json(
