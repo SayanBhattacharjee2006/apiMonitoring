@@ -114,3 +114,5 @@ class MongoClientRepository extends BaseClientRepository {
         }
     }
 }
+
+export default MongoClientRepository;
