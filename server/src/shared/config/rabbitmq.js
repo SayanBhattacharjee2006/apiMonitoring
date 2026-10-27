@@ -55,6 +55,10 @@ class RabbitMQConnection {
                 logger.error("RabbitMQ connection error:", error);
             });
 
+            this.channel.on("close", () => {
+                this.channel = null;
+            });
+
             this.connection.on("close", () => {
                 this.channel = null;
                 this.connection = null;
@@ -80,14 +84,24 @@ class RabbitMQConnection {
 
     async close() {
         try {
-            if (this.connection) {
-                await this.channel.close();
+            if (this.channel) {
+                const ch = this.channel;
                 this.channel = null;
+                try {
+                    await ch.close();
+                } catch (e) {
+                    // channel already closed
+                }
             }
 
             if (this.connection) {
-                await this.connection.close();
+                const conn = this.connection;
                 this.connection = null;
+                try {
+                    await conn.close();
+                } catch (e) {
+                    // connection already closed
+                }
             }
 
             logger.info("RabbitMQ connection closed");

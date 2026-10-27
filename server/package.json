@@ -7,7 +7,18 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "processor": "node src/services/processorService/consumer.js"
+    "processor": "node src/services/processorService/consumer.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:auth": "vitest run test/auth",
+    "test:clients": "vitest run test/clients test/users",
+    "test:api-keys": "vitest run test/apiKeys",
+    "test:ingest": "vitest run test/ingest",
+    "test:processing": "vitest run test/processing",
+    "test:analytics": "vitest run test/analytics",
+    "test:rbac": "vitest run test/authorization",
+    "test:reliability": "vitest run test/reliability",
+    "test:e2e": "vitest run test/e2e"
   },
   "keywords": [
     "api",
@@ -34,6 +45,8 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.2",
+    "supertest": "^7.3.1",
+    "vitest": "^5.0.5"
   }
 }

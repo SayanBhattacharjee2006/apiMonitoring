@@ -162,4 +162,9 @@ async function startServer() {
     }
 }
 
-await startServer();
+export { app, startServer, initializeConnection };
+
+if (process.env.NODE_ENV !== "test") {
+    await startServer();
+}
+

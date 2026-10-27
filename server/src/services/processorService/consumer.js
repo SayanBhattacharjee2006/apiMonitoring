@@ -451,6 +451,10 @@ process.on('unhandledRejection', (reason, promise) => {
     process.exit(1);
 });
 
-await startConsumerWithRetry();
+export { EventConsumer, startConsumerWithRetry };
+
+if (process.env.NODE_ENV !== "test") {
+    await startConsumerWithRetry();
+}
 
 export default consumer;
