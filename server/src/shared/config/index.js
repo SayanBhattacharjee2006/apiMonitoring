@@ -6,6 +6,9 @@ const config = {
     node_env: process.env.NODE_ENV || "development",
     port: Number.parseInt(process.env.PORT || "5000", 10),
 
+    // Super Admin bootstrap security
+    bootstrapSecret: process.env.SUPER_ADMIN_BOOTSTRAP_SECRET || "adm_bootstrap_secret_default",
+
     // MongoDB
     mongo: {
         uri:
@@ -38,17 +41,24 @@ const config = {
     },
 
     rateLimiter: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10), // 1 minute
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10), // 15 minutes
         maxRequests: parseInt(
             process.env.RATE_LIMIT_MAX_REQUESTS || "1000",
             10,
-        ), // limit each IP to 100 requests per windowMs
+        ),
+    },
+
+    authRateLimiter: {
+        windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || "900000", 10), // 15 minutes
+        maxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || "100", 10),
     },
 
     cookie: {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
         expires: 24 * 60 * 60 * 1000, // 1 day
+        path: "/",
     },
 };
 

@@ -108,10 +108,15 @@ export const useAuthStore = create((set, get) => ({
   /**
    * Onboard initial super admin
    */
-  onboardSuperAdmin: async ({ username, password, email }) => {
+  onboardSuperAdmin: async ({ username, password, email, bootstrapSecret }) => {
     set({ error: null });
     try {
-      const response = await authService.onboardSuperAdmin({ username, password, email });
+      const response = await authService.onboardSuperAdmin({
+        username,
+        password,
+        email,
+        bootstrapSecret,
+      });
       const user = response.data;
       set({
         user,

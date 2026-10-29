@@ -60,6 +60,14 @@ describe("Phase 8: API Key Management (POST/GET /api/admin/client/:clientId/api/
         expect(res.body.message).toMatch(/access denied/i);
     });
 
+    it("prevents Client Viewer from viewing/listing API keys with 403", async () => {
+        const res = await listTestApiKeys(app, clientAViewer, clientA._id);
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+        expect(res.body.message).toMatch(/access denied/i);
+    });
+
     it("prevents Client A Admin from generating API keys for Client B (Cross-Tenant Isolation)", async () => {
         const keyData = generateApiKeyData();
         const res = await request(app)

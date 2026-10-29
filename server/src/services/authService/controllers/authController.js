@@ -14,30 +14,40 @@ export class AuthController {
     }
 
     /**
+     * Helper to get uniform cookie options
+     */
+    getCookieOptions() {
+        return {
+            httpOnly: config.cookie.httpOnly,
+            secure: config.cookie.secure,
+            sameSite: config.cookie.sameSite || "lax",
+            maxAge: config.cookie.expires,
+            path: config.cookie.path || "/",
+        };
+    }
+
+    /**
      * Onboards a new super admin user.
      * @param {Request} req - The request object containing user details.
      * @param {Response} res - The response object used to send the response.
      * @param {Function} next - The next middleware function in the request-response cycle.
      */
-
     async onboardSuperAdmin(req, res, next) {
         try {
-            const { username, password, email } = req.body;
+            const { username, password, email, bootstrapSecret } = req.body;
+            const headerSecret = req.headers["x-bootstrap-secret"];
             const superAdminData = {
                 username,
                 password,
                 email,
                 role: APPLICATION_ROLES.SUPER_ADMIN,
+                bootstrapSecret: bootstrapSecret || headerSecret,
             };
 
             const { token, user } =
                 await this.authService.onboardSuperAdmin(superAdminData);
 
-            res.cookie("authToken", token, {
-                httpOnly: config.cookie.httpOnly,
-                secure: config.cookie.secure,
-                maxAge: config.cookie.expires,
-            });
+            res.cookie("authToken", token, this.getCookieOptions());
 
             return res
                 .status(201)
@@ -87,11 +97,7 @@ export class AuthController {
             const { token, user, client } =
                 await this.authService.registerTenant(tenantData);
 
-            res.cookie("authToken", token, {
-                httpOnly: config.cookie.httpOnly,
-                secure: config.cookie.secure,
-                maxAge: config.cookie.expires,
-            });
+            res.cookie("authToken", token, this.getCookieOptions());
 
             return res
                 .status(201)
@@ -108,12 +114,11 @@ export class AuthController {
     }
 
     /**
-     * Registers a new user.
+     * Registers a new user (internal Super Admin creation for existing client).
      * @param {Request} req - The request object containing user details.
      * @param {Response} res - The response object used to send the response.
      * @param {Function} next - The next middleware function in the request-response cycle.
      */
-
     async register(req, res, next) {
         try {
             const { username, password, email, role, clientId } = req.body;
@@ -127,11 +132,7 @@ export class AuthController {
 
             const { token, user } = await this.authService.register(userData);
 
-            res.cookie("authToken", token, {
-                httpOnly: config.cookie.httpOnly,
-                secure: config.cookie.secure,
-                maxAge: config.cookie.expires,
-            });
+            res.cookie("authToken", token, this.getCookieOptions());
 
             return res
                 .status(201)
@@ -153,7 +154,6 @@ export class AuthController {
      * @param {Response} res - The response object used to send the response.
      * @param {Function} next - The next middleware function in the request-response cycle.
      */
-
     async login(req, res, next) {
         try {
             const { username, password } = req.body;
@@ -161,11 +161,7 @@ export class AuthController {
                 username,
                 password,
             );
-            res.cookie("authToken", token, {
-                httpOnly: config.cookie.httpOnly,
-                secure: config.cookie.secure,
-                maxAge: config.cookie.expires,
-            });
+            res.cookie("authToken", token, this.getCookieOptions());
 
             return res
                 .status(200)
@@ -187,7 +183,6 @@ export class AuthController {
      * @param {Response} res - The response object used to send the response.
      * @param {Function} next - The next middleware function in the request-response cycle.
      */
-
     async getProfile(req, res, next) {
         try {
             const userId = req.user.userId;
@@ -213,10 +208,15 @@ export class AuthController {
      * @param {Response} res - The response object used to send the response.
      * @param {Function} next - The next middleware function in the request-response cycle.
      */
-
     async logout(req, res, next) {
         try {
-            res.clearCookie("authToken");
+            const clearOptions = {
+                httpOnly: config.cookie.httpOnly,
+                secure: config.cookie.secure,
+                sameSite: config.cookie.sameSite || "lax",
+                path: config.cookie.path || "/",
+            };
+            res.clearCookie("authToken", clearOptions);
             return res
                 .status(200)
                 .json(

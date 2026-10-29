@@ -30,48 +30,46 @@ export const LandingPage = () => {
   const [copied, setCopied] = useState(false);
 
   const snippets = {
-    curl: `curl -X POST https://telemetry.pulse.internal/api/hit \\
+    curl: `curl -X POST http://localhost:5000/api/hit \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: pls_live_948f93e920d3ba84c6e1" \\
   -d '{
-    "route": "/v2/settlements/execute",
+    "serviceName": "billing-service",
+    "endpoint": "/v1/charges/create",
     "method": "POST",
-    "status_code": 200,
-    "duration_ms": 34.8,
-    "client_ip": "192.0.2.42",
-    "timestamp": "2025-05-18T10:42:01.120Z",
-    "metadata": {
-      "region": "us-east-1",
-      "version": "release-2025.4.1"
-    }
+    "statusCode": 200,
+    "latencyMs": 42.5
   }'`,
-    node: `await fetch('https://telemetry.pulse.internal/api/hit', {
+    node: `await fetch('http://localhost:5000/api/hit', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
     'x-api-key': process.env.PULSE_API_KEY
   },
   body: JSON.stringify({
-    route: '/v2/settlements/execute',
+    serviceName: 'billing-service',
+    endpoint: '/v1/charges/create',
     method: 'POST',
-    status_code: 200,
-    duration_ms: 34.8,
-    timestamp: new Date().toISOString()
+    statusCode: 200,
+    latencyMs: 42.5
   })
 });`,
-    python: `import requests, os, datetime
+    python: `import requests, os
 
-requests.post(
-    'https://telemetry.pulse.internal/api/hit',
-    headers={'x-api-key': os.getenv('PULSE_API_KEY')},
-    json={
-        'route': '/v2/settlements/execute',
-        'method': 'POST',
-        'status_code': 200,
-        'duration_ms': 34.8,
-        'timestamp': datetime.datetime.utcnow().isoformat()
+response = requests.post(
+    'http://localhost:5000/api/hit',
+    headers={
+        'Content-Type': 'application/json',
+        'x-api-key': os.getenv('PULSE_API_KEY')
     },
-    timeout=0.100  # Non-blocking 100ms bail out
+    json={
+        'serviceName': 'billing-service',
+        'endpoint': '/v1/charges/create',
+        'method': 'POST',
+        'statusCode': 200,
+        'latencyMs': 42.5
+    },
+    timeout=2.0
 )`,
   };
 
@@ -134,7 +132,7 @@ requests.post(
                   className="inline-flex items-center gap-1.5 bg-burgundy text-white hover:bg-burgundy-dark transition-all px-4 py-2 rounded-lg text-xs font-semibold shadow-sm active:scale-95"
                 >
                   <LogIn className="w-3.5 h-3.5" />
-                  <span>Get Started</span>
+                  <span>Create workspace</span>
                 </Link>
               </>
             )}
@@ -169,29 +167,29 @@ requests.post(
               </h1>
 
               <p className="text-base sm:text-lg text-ink-secondary max-w-3xl leading-relaxed">
-                A modular, high-throughput observability platform engineered with zero-knowledge tenant isolation, sub-millisecond ingest hit validation, and actionable reliability analytics.
+                A modular, high-throughput observability platform engineered with secure multi-tenant isolation, asynchronous event buffering, and actionable reliability analytics.
               </p>
 
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <Link
-                  to="/dashboard"
+                  to="/register"
                   className="inline-flex items-center gap-2 bg-burgundy hover:bg-burgundy-dark text-white font-semibold text-sm px-6 py-3.5 rounded-lg shadow-md transition-all active:scale-95"
                 >
-                  <span>Explore Live Dashboard</span>
+                  <span>Create your workspace</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
 
-                <a
-                  href="#pipeline-architecture"
+                <Link
+                  to="/login"
                   className="inline-flex items-center gap-2 bg-card-surface hover:bg-surface-container text-ink-primary font-semibold text-sm px-6 py-3.5 rounded-lg border border-hairline/80 shadow-sm transition-all"
                 >
-                  <Terminal className="w-4 h-4 text-burgundy" />
-                  <span>Read Architecture Spec</span>
-                </a>
+                  <LogIn className="w-4 h-4 text-burgundy" />
+                  <span>Sign in</span>
+                </Link>
 
                 <div className="flex items-center gap-2 px-3 py-2 text-ink-secondary text-xs font-semibold ml-auto sm:ml-0">
                   <ShieldCheck className="w-4 h-4 text-[#154620]" />
-                  <span>SOC 2 Type II Certified Ingestion</span>
+                  <span>Cryptographic API Key Ingestion</span>
                 </div>
               </div>
             </div>
@@ -736,14 +734,14 @@ requests.post(
                   <ShieldCheck className="w-6 h-6" />
                 </div>
                 <h3 className="font-serif text-xl font-semibold text-ink-primary">
-                  Zero-Knowledge Security Architecture
+                  Defense-in-Depth Tenant Security
                 </h3>
                 <p className="text-sm text-ink-secondary leading-relaxed">
-                  Session tokens are sealed within HTTP-only, SameSite strict cookies. Full request-response bodies can be sanitized on client ingestion nodes, preserving telemetry insights while scrubbing PII, credentials, and sensitive payment data.
+                  Session tokens are sealed within HTTP-only, SameSite cookies with active database status verification. Ingested API calls authenticate via salted SHA-512 hashed keys, ensuring no plaintext keys persist in storage.
                 </p>
                 <div className="mt-4 pt-4 border-t border-hairline/40 flex items-center justify-between text-xs text-ink-secondary font-medium">
-                  <span>Session: HTTP-Only Strict</span>
-                  <span className="text-[#154620] font-semibold">GDPR &amp; HIPAA Compliant</span>
+                  <span>Session: HTTP-Only Secure</span>
+                  <span className="text-[#154620] font-semibold">Strict Role Authorization</span>
                 </div>
               </div>
             </div>
@@ -822,7 +820,7 @@ requests.post(
 
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-xs text-[#9ED3A0] hidden sm:inline">
-                    POST /api/hit — 200 OK Response
+                    POST /api/hit — 202 Accepted Response
                   </span>
                   <button
                     type="button"
@@ -862,7 +860,7 @@ requests.post(
                 </div>
                 <div className="pt-1 sm:pt-0">
                   <span>
-                    Acknowledgement: <span className="text-[#BAF0BB]">{'{ "acknowledged": true, "trace_id": "trc_8a1e9" }'}</span>
+                    Acknowledgement: <span className="text-[#BAF0BB]">{'{ "success": true, "statusCode": 202, "data": { "status": "queued" } }'}</span>
                   </span>
                 </div>
               </div>
@@ -881,20 +879,20 @@ requests.post(
                 Ready to instrument your API cluster?
               </h2>
               <p className="text-base text-ink-secondary leading-relaxed">
-                Spin up an isolated tenant sandbox or connect your production API gateway in minutes. Zero upfront commitment; full architectural access included.
+                Create an isolated tenant workspace or connect your production API services in minutes. Full multi-tenant monitoring, metrics aggregation, and role governance included.
               </p>
               <div className="flex flex-wrap items-center gap-6 pt-2 text-xs text-ink-secondary font-medium">
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#154620]" />
-                  14-day full cluster trial
+                  Instant workspace provisioning
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#154620]" />
-                  Unlimited mock endpoints
+                  Real-time telemetry aggregation
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#154620]" />
-                  Zero unhashed keys
+                  Salted SHA-512 API keys
                 </span>
               </div>
             </div>
@@ -904,14 +902,14 @@ requests.post(
                 to="/register"
                 className="inline-flex items-center justify-center gap-2 bg-burgundy hover:bg-burgundy-dark text-white font-semibold text-sm px-8 py-4 rounded-lg shadow-md transition-all active:scale-95"
               >
-                <span>Initialize Cluster Tenant</span>
+                <span>Create your workspace</span>
                 <Zap className="w-4 h-4" />
               </Link>
               <Link
                 to="/login"
                 className="inline-flex items-center justify-center gap-2 bg-surface-container hover:bg-surface-container-high text-ink-primary font-semibold text-sm px-8 py-4 rounded-lg border border-hairline/60 shadow-sm transition-all"
               >
-                <span>Super-Admin Sign In</span>
+                <span>Sign in</span>
                 <LogIn className="w-4 h-4" />
               </Link>
             </div>
@@ -983,7 +981,7 @@ requests.post(
               </span>
               <nav className="flex flex-col gap-2 text-xs text-ink-secondary">
                 <span className="hover:text-burgundy transition-colors cursor-pointer">
-                  SOC 2 Type II
+                  Audit &amp; Compliance
                 </span>
                 <span className="hover:text-burgundy transition-colors cursor-pointer">
                   GDPR &amp; Privacy

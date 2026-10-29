@@ -1,4 +1,18 @@
 import { isValidRole } from "../../../shared/constants/roles.js";
+import SecurityUtils from "../../../shared/utils/SecurityUtils.js";
+
+/**
+ * Validates password strength according to SecurityUtils policy
+ * (length >= 8, uppercase, lowercase, numbers, symbols, weak passwords check)
+ */
+const validatePasswordCustom = (value) => {
+    if (!value) return "Password is required";
+    const result = SecurityUtils.validatePassword(value);
+    if (!result.success) {
+        return result.errors.join(". ");
+    }
+    return null;
+};
 
 /**
  * Validation schemas for the Auth module.
@@ -7,30 +21,42 @@ import { isValidRole } from "../../../shared/constants/roles.js";
 export const onboardSuperAdminSchema = {
     username: {
         required: true,
+        minLength: 3,
     },
     password: {
         required: true,
-        minLength: 6,
+        custom: validatePasswordCustom,
     },
     email: {
         required: true,
+        custom: (value) => {
+            if (!value) return null;
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? null : 'Invalid email format';
+        }
     },
+    bootstrapSecret: {
+        required: false,
+    }
 };
 
 /**
- * Validation schema for user registration.
+ * Validation schema for user registration (internal super-admin user creation).
  */
-
 export const registrationSchema = {
     username: {
         required: true,
+        minLength: 3,
     },
     password: {
         required: true,
-        minLength: 6,
+        custom: validatePasswordCustom,
     },
     email: {
         required: true,
+        custom: (value) => {
+            if (!value) return null;
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? null : 'Invalid email format';
+        }
     },
     role: {
         required: true,
@@ -46,8 +72,8 @@ export const registrationSchema = {
 
 /**
  * Validation schema for user login.
+ * Kept simple without password-strength rules so existing users can always log in.
  */
-
 export const loginSchema = {
     username: { required: true },
     password: { required: true }
@@ -78,7 +104,7 @@ export const registerTenantSchema = {
     },
     password: {
         required: true,
-        minLength: 6,
+        custom: validatePasswordCustom,
     },
     adminEmail: {
         required: false,

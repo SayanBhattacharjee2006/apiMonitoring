@@ -68,6 +68,24 @@ describe("Phase 7/8: Client User Management (POST /api/admin/client/:clientId/us
         expect(user.clientId.toString()).toBe(clientA._id.toString());
     });
 
+    it("prevents Client Viewer from creating client users with 403", async () => {
+        // Create Client A Viewer
+        const viewerAData = generateClientUserData("client-viewer");
+        await createTestClientUser(app, superAdmin, clientA._id, viewerAData);
+        const viewerA = await loginUser(app, viewerAData.username, viewerAData.password);
+
+        // Viewer attempts to create a new user
+        const targetUserData = generateClientUserData("client-viewer");
+        const res = await request(app)
+            .post(`/api/admin/client/${clientA._id}/users`)
+            .set("Cookie", viewerA.cookie)
+            .send(targetUserData);
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+        expect(res.body.message).toMatch(/only administrators can create users/i);
+    });
+
     it("prevents Client A Admin from creating a user for Client B (Cross-Tenant Isolation)", async () => {
         // Create Client A Admin
         const adminAData = generateClientUserData("client-admin");

@@ -142,6 +142,13 @@ export default class ClientService {
                 throw new AppError("Access denied", 403);
             }
 
+            if (
+                adminUser.role !== APPLICATION_ROLES.SUPER_ADMIN &&
+                adminUser.role !== APPLICATION_ROLES.CLIENT_ADMIN
+            ) {
+                throw new AppError("Access denied: only administrators can create users", 403);
+            }
+
             const {
                 email,
                 username,
@@ -261,6 +268,13 @@ export default class ClientService {
         try {
             if (!this.canUserAccessClient(user, clientId)) {
                 throw new AppError("Access denied", 403);
+            }
+
+            if (
+                user.role !== APPLICATION_ROLES.SUPER_ADMIN &&
+                user.role !== APPLICATION_ROLES.CLIENT_ADMIN
+            ) {
+                throw new AppError("Access denied: only administrators can view API keys", 403);
             }
 
             const apikeys =
