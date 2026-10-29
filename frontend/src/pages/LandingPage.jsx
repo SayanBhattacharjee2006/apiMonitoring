@@ -130,7 +130,7 @@ requests.post(
                   Sign In
                 </Link>
                 <Link
-                  to="/login"
+                  to="/register"
                   className="inline-flex items-center gap-1.5 bg-burgundy text-white hover:bg-burgundy-dark transition-all px-4 py-2 rounded-lg text-xs font-semibold shadow-sm active:scale-95"
                 >
                   <LogIn className="w-3.5 h-3.5" />
@@ -901,7 +901,7 @@ requests.post(
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto">
               <Link
-                to="/login"
+                to="/register"
                 className="inline-flex items-center justify-center gap-2 bg-burgundy hover:bg-burgundy-dark text-white font-semibold text-sm px-8 py-4 rounded-lg shadow-md transition-all active:scale-95"
               >
                 <span>Initialize Cluster Tenant</span>

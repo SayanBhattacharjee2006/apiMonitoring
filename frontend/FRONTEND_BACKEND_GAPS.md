@@ -1,10 +1,21 @@
-# API Monitoring Frontend-Backend Capabilities & Discrepancies
+# API Monitoring Frontend-Backend Capabilities, Gaps & Multi-Tenant Audit
 
 This document catalogs architectural discrepancies, missing backend endpoints, and capabilities represented in the Google Stitch design system versus the current Express/MongoDB/PostgreSQL backend implementation.
 
 ---
 
-## 1. Client Management
+## 1. Multi-Tenant Onboarding & Independent Registration
+
+| Capability / User Journey | Backend Status | Backend Endpoint | Frontend Handling |
+| :--- | :--- | :--- | :--- |
+| **Independent Tenant Registration** | **Not Supported** | No public endpoint exists. `POST /api/auth/register` requires `super-admin` authentication and an existing `clientId`. `POST /api/admin/client/onboard` also requires `super-admin`. | Added `RegisterTenantPage.jsx` (`/register`) to collect organization + initial admin details. Added graceful error handling informing users that the backend currently requires Super Admin authorization for tenant provisioning. |
+| **Super Admin Bootstrap** | **Fully Supported** | `POST /api/auth/onboard-super-admin` | Implemented in `LoginPage.jsx` under the *Initial Setup* tab. Enforces bootstrap state guard (succeeds only if 0 super admins exist in cluster). |
+| **Super Admin Provisioning** | **Fully Supported** | `POST /api/admin/client/onboard` + `POST /api/admin/client/:clientId/users` | Implemented across `ClientsPage.jsx` and `CreateUserPage.jsx`. |
+| **Role-Based Privilege Escalation Prevention** | **Frontend Guarded** | `registrationSchema` currently accepts any valid role (including `super-admin`). | Frontend strictly requests `client-admin` registration for tenants, avoiding privilege escalation. |
+
+---
+
+## 2. Client & Tenant Management
 
 | Stitch Design Requirement | Backend Status | Backend Endpoint | Frontend Handling |
 | :--- | :--- | :--- | :--- |
@@ -15,7 +26,7 @@ This document catalogs architectural discrepancies, missing backend endpoints, a
 
 ---
 
-## 2. User Governance & Access Control
+## 3. User Governance & Access Control
 
 | Stitch Design Requirement | Backend Status | Backend Endpoint | Frontend Handling |
 | :--- | :--- | :--- | :--- |
@@ -23,11 +34,10 @@ This document catalogs architectural discrepancies, missing backend endpoints, a
 | **User Modification / Deactivation** | **Not Supported** | No user edit or status toggle route exists. | Documented as missing backend feature. |
 | **User Onboarding / Invitation Email** | **Not Supported** | The backend stores user records in MongoDB without an email/SMTP delivery transport. | Displays an explicit notice: *"Manual Dispatch Mandatory: User credentials are not emailed automatically by backend."* |
 | **Client User Provisioning** | **Fully Supported** | `POST /api/admin/client/:clientId/users` | Implemented in `CreateUserPage.jsx` supporting `username`, `email`, `password`, `role` (`client-admin` / `client-viewer`). |
-| **Super Admin Bootstrap** | **Fully Supported** | `POST /api/auth/onboard-super-admin` | Implemented in `LoginPage.jsx` under the *Initial Setup* tab with bootstrap state guard handling. |
 
 ---
 
-## 3. API Key Management
+## 4. API Key Management
 
 | Stitch Design Requirement | Backend Status | Backend Endpoint | Frontend Handling |
 | :--- | :--- | :--- | :--- |
@@ -38,7 +48,7 @@ This document catalogs architectural discrepancies, missing backend endpoints, a
 
 ---
 
-## 4. Telemetry & Analytics
+## 5. Telemetry & Analytics
 
 | Stitch Design Requirement | Backend Status | Backend Endpoint | Frontend Handling |
 | :--- | :--- | :--- | :--- |
@@ -51,9 +61,12 @@ This document catalogs architectural discrepancies, missing backend endpoints, a
 
 ---
 
-## 5. Security & Authentication Architecture
+## 6. Security, Authentication Architecture & Typography
 
-* **Session Token Transport**: The backend utilizes HTTP-only cookies (`authToken`). The frontend does NOT store JWTs in `localStorage` or `sessionStorage`.
-* **Session Restoration**: On application startup, the frontend issues `GET /api/auth/profile` with credentials enabled (`withCredentials: true`). If valid, the user state is populated in the Zustand store.
-* **CORS & Reverse Proxy**: In development, Vite proxies `/api` and `/health` requests to `http://localhost:5000` to prevent cross-origin cookie restrictions.
-
+- **Session Token Transport**: The backend utilizes HTTP-only cookies (`authToken`). The frontend does NOT store JWTs in `localStorage` or `sessionStorage`.
+- **Session Restoration**: On application startup, the frontend issues `GET /api/auth/profile` with credentials enabled (`withCredentials: true`). If valid, the user state is populated in the Zustand store.
+- **CORS & Reverse Proxy**: In development, Vite proxies `/api` and `/health` requests to `http://localhost:5000` to prevent cross-origin cookie restrictions.
+- **Strict Typography Compliance**: Per design requirements, the frontend is strictly restricted to two font families:
+  1. **Comic Neue** (`font-serif`): Headings, mastheads, primary logos, and editorial highlights.
+  2. **Prompt** (`font-sans`): Body text, labels, form controls, navigation links, and data tables.
+  No other font families are imported or used.

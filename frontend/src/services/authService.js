@@ -54,6 +54,26 @@ export const authService = {
   },
 
   /**
+   * Register a new independent tenant organization with initial administrator.
+   * Note: The current backend contract does not have a public tenant registration route;
+   * this attempts to call POST /api/auth/register-tenant (or POST /api/auth/register).
+   * It properly communicates contract errors or success back to the UI.
+   */
+  async registerTenant(tenantData) {
+    try {
+      const response = await apiClient.post('/api/auth/register-tenant', tenantData);
+      return response.data;
+    } catch (err) {
+      if (err.response?.status === 404) {
+        throw new Error(
+          'Tenant registration endpoint (POST /api/auth/register-tenant) is not implemented on the backend. The backend currently requires Super Admin authorization to onboard clients.'
+        );
+      }
+      throw err;
+    }
+  },
+
+  /**
    * Check backend health status
    */
   async getHealth() {

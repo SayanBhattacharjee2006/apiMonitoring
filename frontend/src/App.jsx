@@ -7,6 +7,7 @@ import AppLayout from './components/layout/AppLayout';
 // Pages
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import RegisterTenantPage from './pages/RegisterTenantPage';
 import DashboardPage from './pages/DashboardPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import ClientsPage from './pages/ClientsPage';
@@ -30,6 +31,7 @@ export function App() {
 
         {/* Public Authentication Route */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterTenantPage />} />
 
         {/* Protected Dashboard Hierarchy */}
         <Route

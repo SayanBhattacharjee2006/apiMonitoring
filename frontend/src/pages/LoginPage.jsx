@@ -253,6 +253,17 @@ export const LoginPage = () => {
                   <span>{loginLoading ? 'Validating Credentials...' : 'Sign In to Dashboard'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
+
+                <div className="pt-2 text-center text-xs text-ink-secondary">
+                  <span>Registering a new organization? </span>
+                  <Link
+                    to="/register"
+                    className="font-semibold text-burgundy hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>Register new tenant</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
               </form>
             </section>
           )}
