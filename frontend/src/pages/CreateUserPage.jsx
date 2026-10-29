@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   UserPlus,
@@ -10,6 +10,7 @@ import {
   AlertCircle,
   MailCheck,
   Lock,
+  RefreshCw,
 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import clientService from '../services/clientService';
@@ -20,13 +21,13 @@ export const CreateUserPage = () => {
   const [searchParams] = useSearchParams();
   const isSuperAdmin = role === 'super-admin';
 
-  // Client ID:
-  // For Client Admin: always user.clientId
-  // For Super Admin: from URL search param or typed
+  const queryClientId = searchParams.get('clientId') || '';
   const defaultClientId =
-    (!isSuperAdmin && user?.clientId) ? user.clientId : (searchParams.get('clientId') || '');
+    (!isSuperAdmin && user?.clientId) ? user.clientId : queryClientId;
 
+  const [clients, setClients] = useState([]);
   const [targetClientId, setTargetClientId] = useState(defaultClientId);
+  const [manualEntry, setManualEntry] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,6 +38,22 @@ export const CreateUserPage = () => {
   const [error, setError] = useState(null);
   const [createdUser, setCreatedUser] = useState(null);
 
+  useEffect(() => {
+    if (isSuperAdmin) {
+      clientService
+        .getClients()
+        .then((res) => {
+          if (res?.data && Array.isArray(res.data)) {
+            setClients(res.data);
+            if (!targetClientId && res.data.length > 0) {
+              setTargetClientId(queryClientId || res.data[0]._id);
+            }
+          }
+        })
+        .catch((err) => console.error('Failed to load clients:', err));
+    }
+  }, [isSuperAdmin, queryClientId]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!targetClientId.trim()) {
@@ -46,6 +63,12 @@ export const CreateUserPage = () => {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    // Username format check
+    if (username.includes('@')) {
+      setError('Username should not contain "@". Please use alphanumeric characters or underscore.');
       return;
     }
 
@@ -62,7 +85,6 @@ export const CreateUserPage = () => {
 
       if (response && response.data) {
         setCreatedUser(response.data);
-        // Reset form fields except client ID
         setUsername('');
         setEmail('');
         setPassword('');
@@ -110,13 +132,13 @@ export const CreateUserPage = () => {
       )}
 
       {createdUser && (
-        <div className="p-4 rounded-xl bg-[#E5EAE2] border border-[#C5D2C1] text-[#3B5738] flex items-start justify-between gap-3 shadow-sm animate-in fade-in duration-300">
+        <div className="bg-[#3B5738]/10 border border-[#3B5738]/30 rounded-xl p-4 flex items-start justify-between gap-3 text-xs text-ink-primary animate-fadeIn">
           <div className="flex items-start gap-2.5">
-            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-1">
-              <p className="font-bold text-sm">
-                User Account Successfully Provisioned
-              </p>
+            <CheckCircle className="w-4 h-4 text-[#3B5738] shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold text-[#3B5738] uppercase tracking-wider text-[11px]">
+                Client User Successfully Provisioned
+              </span>
               <p>
                 Username: <strong className="font-mono">{createdUser.username}</strong> ({createdUser.role})
               </p>
@@ -157,19 +179,47 @@ export const CreateUserPage = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Target Client ID */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="target-client-id">
-                Target Client ID <span className="text-burgundy">*</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="target-client-id">
+                  Target Client Tenant <span className="text-burgundy">*</span>
+                </label>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setManualEntry(!manualEntry)}
+                    className="text-[11px] text-ink-secondary hover:text-burgundy underline cursor-pointer"
+                  >
+                    {manualEntry ? 'Select from list' : 'Manual ID'}
+                  </button>
+                )}
+              </div>
+
               {isSuperAdmin ? (
-                <input
-                  id="target-client-id"
-                  type="text"
-                  required
-                  value={targetClientId}
-                  onChange={(e) => setTargetClientId(e.target.value)}
-                  placeholder="e.g. 64f1c98e2b8a7..."
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm font-mono text-burgundy font-semibold outline-none focus:border-burgundy focus:bg-card-surface transition-all"
-                />
+                !manualEntry && clients.length > 0 ? (
+                  <select
+                    id="target-client-id"
+                    value={targetClientId}
+                    onChange={(e) => setTargetClientId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm text-ink-primary font-semibold outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
+                  >
+                    <option value="">-- Select Client Organization --</option>
+                    {clients.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name} ({c.slug})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="target-client-id"
+                    type="text"
+                    required
+                    value={targetClientId}
+                    onChange={(e) => setTargetClientId(e.target.value)}
+                    placeholder="e.g. 64f1c98e2b8a7..."
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm font-mono text-burgundy font-semibold outline-none focus:border-burgundy focus:bg-card-surface transition-all"
+                  />
+                )
               ) : (
                 <input
                   id="target-client-id"
@@ -179,11 +229,6 @@ export const CreateUserPage = () => {
                   className="w-full px-3 py-2 rounded-lg bg-surface-container-high border border-hairline/60 text-sm font-mono text-ink-secondary cursor-not-allowed"
                 />
               )}
-              <span className="text-[11px] text-ink-secondary">
-                {isSuperAdmin
-                  ? 'Super Admin can associate user to any valid Client ID.'
-                  : 'Locked to your authenticated tenant association.'}
-              </span>
             </div>
 
             {/* Username & Email */}
@@ -198,14 +243,14 @@ export const CreateUserPage = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="acme_lead"
+                  placeholder="e.g. alex_ops"
                   className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
                 />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="user-email">
-                  Work Email <span className="text-burgundy">*</span>
+                  Email Address <span className="text-burgundy">*</span>
                 </label>
                 <input
                   id="user-email"
@@ -213,133 +258,120 @@ export const CreateUserPage = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="lead@acme.io"
+                  placeholder="alex@clientcorp.io"
                   className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
                 />
               </div>
             </div>
 
-            {/* Initial Password with Toggle */}
+            {/* Password */}
             <div className="flex flex-col gap-1">
               <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="user-password">
-                Initial Access Secret / Password <span className="text-burgundy">*</span>
+                Initial Password <span className="text-burgundy">*</span>
               </label>
               <div className="relative">
                 <input
                   id="user-password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••••••"
-                  className="w-full px-3 pr-10 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
+                  placeholder="Minimum 6 characters"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all pr-10 font-sans"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-ink-secondary hover:text-ink-primary cursor-pointer"
+                  className="absolute right-3 top-2.5 text-ink-secondary hover:text-ink-primary cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Role Selection */}
-            <div className="flex flex-col gap-2">
+            {/* Role Radio Picker */}
+            <div className="flex flex-col gap-1.5 pt-1">
               <span className="text-xs uppercase font-semibold text-ink-primary">
-                Tenant Authorization Role
+                Assigned Tenant Role
               </span>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('client-admin')}
-                  className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label
+                  className={`p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col gap-1 ${
                     selectedRole === 'client-admin'
-                      ? 'bg-burgundy text-white border-burgundy shadow-sm'
-                      : 'bg-surface-container-low text-ink-primary border-hairline/60 hover:bg-surface-container'
+                      ? 'border-burgundy bg-surface-container-low text-ink-primary'
+                      : 'border-hairline/60 bg-card-surface text-ink-secondary hover:bg-surface-container-low'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs uppercase tracking-wider">client-admin</span>
-                    <Shield className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold text-burgundy uppercase">Client Admin</span>
+                    <input
+                      type="radio"
+                      name="role"
+                      value="client-admin"
+                      checked={selectedRole === 'client-admin'}
+                      onChange={() => setSelectedRole('client-admin')}
+                      className="accent-burgundy"
+                    />
                   </div>
-                  <span className={`text-[11px] ${selectedRole === 'client-admin' ? 'text-white/80' : 'text-ink-secondary'}`}>
-                    Manage keys &amp; telemetry
+                  <span className="text-[11px] leading-snug">
+                    Can issue API keys, provision users, and view telemetry metrics.
                   </span>
-                </button>
+                </label>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('client-viewer')}
-                  className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+                <label
+                  className={`p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col gap-1 ${
                     selectedRole === 'client-viewer'
-                      ? 'bg-burgundy text-white border-burgundy shadow-sm'
-                      : 'bg-surface-container-low text-ink-primary border-hairline/60 hover:bg-surface-container'
+                      ? 'border-burgundy bg-surface-container-low text-ink-primary'
+                      : 'border-hairline/60 bg-card-surface text-ink-secondary hover:bg-surface-container-low'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs uppercase tracking-wider">client-viewer</span>
-                    <Eye className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold text-ink-primary uppercase">Client Viewer</span>
+                    <input
+                      type="radio"
+                      name="role"
+                      value="client-viewer"
+                      checked={selectedRole === 'client-viewer'}
+                      onChange={() => setSelectedRole('client-viewer')}
+                      className="accent-burgundy"
+                    />
                   </div>
-                  <span className={`text-[11px] ${selectedRole === 'client-viewer' ? 'text-white/80' : 'text-ink-secondary'}`}>
-                    Read-only dashboard access
+                  <span className="text-[11px] leading-snug">
+                    Read-only access to tenant metrics and telemetry charts.
                   </span>
-                </button>
-              </div>
-
-              {/* Dynamic Role Summary Box */}
-              <div className="p-3 rounded-lg bg-surface-container border border-hairline/60 text-xs text-ink-secondary">
-                {selectedRole === 'client-admin' ? (
-                  <p>
-                    <strong className="text-burgundy">client-admin:</strong> Granted full read/write access to live streams, API key generation, and client-user onboarding.
-                  </p>
-                ) : (
-                  <p>
-                    <strong className="text-burgundy">client-viewer:</strong> Restricted to observing sanitized telemetry traces, service metrics, and system status. Cannot generate API keys.
-                  </p>
-                )}
+                </label>
               </div>
             </div>
 
-            {/* Explicit Backend Delivery Notice */}
-            <div className="p-3 rounded-lg bg-surface-container-high border border-hairline/60 flex items-start gap-2.5 text-xs text-ink-primary">
-              <MailCheck className="w-4 h-4 text-burgundy shrink-0 mt-0.5" />
-              <p className="leading-relaxed">
-                <span className="font-semibold text-burgundy">Manual Dispatch Mandatory:</span> The backend does not send automated emails or invitations. Share credentials securely with the user via your vault or encrypted channel.
-              </p>
+            <div className="pt-2 flex justify-end">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 rounded-lg bg-burgundy hover:bg-burgundy-hover text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                {isSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSubmitting ? 'Provisioning Account...' : 'Provision Tenant Account'}</span>
+              </button>
             </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting || !targetClientId}
-              className="w-full mt-1 py-3 px-4 bg-burgundy hover:bg-burgundy-dark text-white font-semibold text-xs uppercase tracking-wider rounded-lg shadow-sm hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>{isSubmitting ? 'Provisioning Account...' : 'Provision User Account'}</span>
-            </button>
           </form>
         </div>
 
-        {/* Governance & Architectural Protocols Note (5 cols on lg) */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
-          <div className="bg-card-surface rounded-xl p-6 border border-hairline/60 shadow-sm flex flex-col gap-3 text-xs text-ink-secondary">
-            <h4 className="font-serif text-base font-medium text-burgundy">
-              Governance Protocols
-            </h4>
-            <ul className="space-y-2.5 leading-relaxed">
-              <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-burgundy mt-1.5 shrink-0" />
-                <span>The backend enforces tenant association for all client users. Ordinary users cannot see global metrics.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-burgundy mt-1.5 shrink-0" />
-                <span>The backend does not expose a user listing endpoint; user accounts are isolated partitions.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-burgundy mt-1.5 shrink-0" />
-                <span>Initial passwords should be communicated privately and rotated during security review.</span>
-              </li>
-            </ul>
+        {/* Right Info Box */}
+        <div className="lg:col-span-5 bg-card-surface rounded-xl p-6 border border-hairline/60 shadow-sm flex flex-col gap-4 text-xs text-ink-secondary">
+          <h4 className="font-serif text-base font-medium text-burgundy">
+            Tenant Account Isolation
+          </h4>
+          <p className="leading-relaxed">
+            Client accounts are pinned to the designated <strong className="text-ink-primary">Client ID</strong> upon creation. All subsequent queries, analytics dashboards, and API key lists are automatically scoped to that client.
+          </p>
+          <div className="p-3 bg-surface-container-low rounded-lg border border-hairline/40 flex flex-col gap-1.5">
+            <span className="font-bold text-burgundy uppercase text-[10px] tracking-wider">
+              Security Notice
+            </span>
+            <span className="text-[11px] leading-relaxed">
+              Client Admins cannot view or manage metrics from other tenants or create Super Admin accounts.
+            </span>
           </div>
         </div>
       </div>

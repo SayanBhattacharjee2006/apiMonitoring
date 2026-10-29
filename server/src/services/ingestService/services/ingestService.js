@@ -93,7 +93,7 @@ export class IngestService {
             "clientId",
         ];
 
-        const missingFields = requiredFields.filter((field) => !hitData[field]);
+        const missingFields = requiredFields.filter((field) => hitData[field] === undefined || hitData[field] === null || hitData[field] === "");
 
         if (missingFields.length > 0) {
             throw new AppError(

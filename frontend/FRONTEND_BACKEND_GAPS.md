@@ -21,8 +21,8 @@ This document catalogs architectural alignments, backend endpoints, and capabili
 
 | Stitch Design Requirement | Backend Status | Backend Endpoint | Frontend Handling |
 | :--- | :--- | :--- | :--- |
-| **Client Directory / Listing** | **Not Supported** | No `GET /api/admin/clients` endpoint exists in `server/src/services/clientService/routes/clientRoutes.js`. | The frontend does not fabricate mock client records. An architectural notice informs Super Admins of zero-knowledge tenant isolation, requiring retention of the generated Client ID. |
-| **Client Details Inspection** | **Not Supported** | No `GET /api/admin/client/:clientId` endpoint exists. | Displays created client metadata immediately upon return from the onboard endpoint. |
+| **Client Directory / Listing** | **Fully Supported** | `GET /api/admin/clients` & `GET /api/clients` | Implemented in `ClientsPage.jsx` with full registry table (Client Name, Slug, Client ID with one-click copy, Email, Status, Registered Date, and Direct Action buttons). Also integrated into `ApiKeysPage.jsx`, `DashboardPage.jsx`, `AnalyticsPage.jsx`, and `CreateUserPage.jsx` as tenant selector dropdowns. |
+| **Client Details Inspection** | **Fully Supported** | `GET /api/admin/client/:clientId` | Supported via direct ID query. |
 | **Client Modification / Deletion** | **Not Supported** | No `PUT /api/admin/client/:clientId` or `DELETE` endpoints exist. | Documented as missing; no deceptive edit/delete buttons rendered. |
 | **Client Onboarding** | **Fully Supported** | `POST /api/admin/client/onboard` | Implemented in `ClientsPage.jsx` supporting `name`, `email`, `description`, `website`. |
 

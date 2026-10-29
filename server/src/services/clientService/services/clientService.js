@@ -313,5 +313,51 @@ export default class ClientService {
             throw error;
         }
     }
+    /**
+     * Get clients based on user role
+     * Super Admin gets all clients; Client-scoped users get their assigned client
+     * @param {Object} user - Authenticated user from req.user
+     * @returns {Promise<Array>} - List of clients
+     */
+    async getClients(user) {
+        try {
+            if (user.role === APPLICATION_ROLES.SUPER_ADMIN) {
+                return await this.clientRepository.find({}, { limit: 100, sort: { createdAt: -1 } });
+            }
 
+            if (user.clientId) {
+                const client = await this.clientRepository.findById(user.clientId);
+                return client ? [client] : [];
+            }
+
+            return [];
+        } catch (error) {
+            logger.error("Error fetching clients in database", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get client by ID with authorization check
+     * @param {String} clientId - Target client ID
+     * @param {Object} user - Authenticated user
+     * @returns {Promise<Object>} - Client object
+     */
+    async getClientById(clientId, user) {
+        try {
+            if (!this.canUserAccessClient(user, clientId)) {
+                throw new AppError("Access denied", 403);
+            }
+
+            const client = await this.clientRepository.findById(clientId);
+            if (!client) {
+                throw new AppError("Client not found", 404);
+            }
+
+            return client;
+        } catch (error) {
+            logger.error("Error fetching client by ID in database", error);
+            throw error;
+        }
+    }
 }

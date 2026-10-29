@@ -13,6 +13,7 @@ import {
 import useAuthStore from '../store/authStore';
 import analyticsService from '../services/analyticsService';
 import authService from '../services/authService';
+import clientService from '../services/clientService';
 import KpiCard from '../components/dashboard/KpiCard';
 import TimeFilterStrip from '../components/dashboard/TimeFilterStrip';
 import RequestVolumeChart from '../components/charts/RequestVolumeChart';
@@ -26,6 +27,21 @@ import AlertMessage from '../components/common/AlertMessage';
 export const DashboardPage = () => {
   const { user, role, activeScopeClientId, setActiveScopeClientId } = useAuthStore();
   const isSuperAdmin = role === 'super-admin';
+
+  const [clients, setClients] = useState([]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      clientService
+        .getClients()
+        .then((res) => {
+          if (res?.data && Array.isArray(res.data)) {
+            setClients(res.data);
+          }
+        })
+        .catch((err) => console.error('Failed to load clients for dashboard:', err));
+    }
+  }, [isSuperAdmin]);
 
   // State
   const [activePreset, setActivePreset] = useState('24h');
@@ -152,51 +168,25 @@ export const DashboardPage = () => {
         <div className="flex flex-wrap items-center gap-3">
           {/* Client Scope Context */}
           {isSuperAdmin ? (
-            <div className="relative">
-              {!isEditingScope ? (
-                <button
-                  onClick={() => setIsEditingScope(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card-surface border border-hairline/60 shadow-sm text-left hover:border-burgundy transition-colors cursor-pointer"
+            <div className="flex items-center gap-2 bg-card-surface px-3 py-1.5 rounded-lg border border-hairline/60 shadow-sm">
+              <Building className="w-4 h-4 text-burgundy shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[9px] uppercase font-bold text-ink-secondary">
+                  Telemetry Scope
+                </span>
+                <select
+                  value={activeScopeClientId || ''}
+                  onChange={(e) => setActiveScopeClientId(e.target.value || null)}
+                  className="text-xs font-semibold text-burgundy bg-transparent outline-none cursor-pointer max-w-[180px] sm:max-w-[220px]"
                 >
-                  <Building className="w-4 h-4 text-burgundy shrink-0" />
-                  <div className="flex flex-col">
-                    <span className="text-[9px] uppercase font-bold text-ink-secondary">
-                      Client Scope
-                    </span>
-                    <span className="text-xs font-semibold text-burgundy max-w-[140px] truncate">
-                      {activeScopeClientId ? `ID: ${activeScopeClientId.substring(0, 10)}...` : 'All Tenants (Global)'}
-                    </span>
-                  </div>
-                </button>
-              ) : (
-                <form
-                  onSubmit={handleApplyScope}
-                  className="flex items-center gap-1.5 p-1.5 rounded-lg bg-card-surface border border-burgundy shadow-md"
-                >
-                  <input
-                    type="text"
-                    value={scopeClientIdInput}
-                    onChange={(e) => setScopeClientIdInput(e.target.value)}
-                    placeholder="Enter Client ID (24-hex)"
-                    className="px-2 py-1 text-xs rounded border border-hairline bg-surface-container-low text-ink-primary outline-none font-mono"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    className="px-2 py-1 bg-burgundy text-white text-xs rounded font-semibold hover:opacity-90 cursor-pointer"
-                  >
-                    Apply
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClearScope}
-                    className="px-2 py-1 bg-surface-container text-ink-secondary text-xs rounded hover:text-ink-primary cursor-pointer"
-                    title="Reset to Global"
-                  >
-                    Global
-                  </button>
-                </form>
-              )}
+                  <option value="">Cluster Global (All Tenants)</option>
+                  {clients.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name} ({c.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           ) : user?.clientId ? (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card-surface border border-hairline/60 shadow-sm text-left">

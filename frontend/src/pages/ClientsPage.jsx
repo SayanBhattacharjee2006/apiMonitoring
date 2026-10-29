@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Building2,
@@ -8,32 +8,68 @@ import {
   Copy,
   Check,
   ArrowRight,
-  ShieldAlert,
+  ShieldCheck,
   UserPlus,
   KeyRound,
-  Sparkles,
+  BarChart3,
+  RefreshCw,
+  PlusCircle,
+  ExternalLink,
 } from 'lucide-react';
 import clientService from '../services/clientService';
+import useAuthStore from '../store/authStore';
 import AlertMessage from '../components/common/AlertMessage';
+import StatusBadge from '../components/common/StatusBadge';
 
 export const ClientsPage = () => {
   const navigate = useNavigate();
+  const { role, setActiveScopeClientId } = useAuthStore();
+  const isSuperAdmin = role === 'super-admin';
+
+  // Clients List State
+  const [clients, setClients] = useState([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
+  const [clientsError, setClientsError] = useState(null);
 
   // Form State
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [description, setDescription] = useState('');
   const [website, setWebsite] = useState('');
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
   const [createdClient, setCreatedClient] = useState(null);
-  const [copiedId, setCopiedId] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [showOnboardForm, setShowOnboardForm] = useState(false);
+
+  // Fetch all clients
+  const fetchClients = useCallback(async () => {
+    setIsClientsLoading(true);
+    setClientsError(null);
+    try {
+      const response = await clientService.getClients();
+      if (response && response.data) {
+        setClients(response.data);
+      } else {
+        setClients([]);
+      }
+    } catch (err) {
+      setClientsError(err.message || 'Failed to retrieve registered client tenants.');
+    } finally {
+      setIsClientsLoading(false);
+    }
+  }, []);
+
+  const setIsClientsLoading = (val) => setIsLoadingClients(val);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setIsLoading(true);
+    setFormError(null);
+    setIsSubmitting(true);
 
     try {
       const response = await clientService.onboardClient({
@@ -43,98 +79,194 @@ export const ClientsPage = () => {
         website,
       });
 
-      // The backend returns: { success: true, message: 'Client created successfully', data: client }
       if (response && response.data) {
         setCreatedClient(response.data);
+        setName('');
+        setEmail('');
+        setDescription('');
+        setWebsite('');
+        // Refresh client list
+        fetchClients();
       }
     } catch (err) {
-      setError(err.message || 'Failed to onboard client tenant.');
+      setFormError(err.message || 'Failed to onboard client tenant.');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const copyClientId = () => {
-    if (!createdClient?._id) return;
-    navigator.clipboard.writeText(createdClient._id);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 2000);
+  const copyToClipboard = (text, id) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleViewAnalytics = (clientId) => {
+    setActiveScopeClientId(clientId);
+    navigate(`/analytics?clientId=${clientId}`);
   };
 
   return (
-    <div className="flex flex-col w-full pb-12">
+    <div className="flex flex-col w-full pb-12 gap-6">
       {/* Editorial Masthead Sub-bar */}
-      <div className="w-full py-4 mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 bg-surface-container-low px-6 rounded-xl border border-hairline/60 shadow-sm">
+      <div className="w-full py-4 bg-surface-container-low px-6 rounded-xl border border-hairline/60 shadow-sm flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5 text-xs text-ink-secondary uppercase tracking-wider font-bold">
-            <span>Registry Management</span>
+            <span>Registry Governance</span>
             <span className="opacity-40">/</span>
             <span className="text-burgundy">Tenant Provisioning Engine</span>
           </div>
           <h1 className="font-serif text-2xl sm:text-3xl text-burgundy tracking-tight font-medium">
-            Client Ingestion &amp; Delegated Access
+            Client Tenants &amp; Organizations
           </h1>
           <p className="text-sm text-ink-secondary max-w-2xl">
-            Execute direct registration for enterprise telemetry clients. Mint tenant scopes, establish secure identifier handles, and delegate granular governance privileges.
+            Provision and manage monitored tenant organizations. Issue ingestion credentials, delegate user access, and scope telemetry telemetry pipelines.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-card-surface px-4 py-2 rounded-lg border border-hairline/60 text-xs">
-          <span className="uppercase text-[10px] font-bold text-ink-secondary">Scope:</span>
-          <span className="font-semibold text-burgundy">Super Admin Provisioner</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => fetchClients()}
+            disabled={isLoadingClients}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card-surface border border-hairline/60 text-xs font-semibold text-ink-primary hover:bg-surface-container transition-colors cursor-pointer"
+            title="Refresh Client Registry"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingClients ? 'animate-spin text-burgundy' : 'text-ink-secondary'}`} />
+            <span>Refresh</span>
+          </button>
+
+          {isSuperAdmin && (
+            <button
+              onClick={() => setShowOnboardForm(!showOnboardForm)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-burgundy text-white text-xs font-bold uppercase tracking-wider hover:bg-burgundy-hover transition-colors shadow-sm cursor-pointer"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>{showOnboardForm ? 'Close Form' : 'Onboard Tenant'}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Honest Architectural Protocol Note */}
-      <div className="w-full mb-6 bg-surface-container-high rounded-xl p-4 flex items-start gap-3.5 border border-hairline/60">
-        <div className="p-1 rounded bg-burgundy text-white mt-0.5">
-          <ShieldAlert className="w-4 h-4" />
-        </div>
-        <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="flex flex-col">
-            <span className="font-bold text-burgundy uppercase tracking-wider text-[11px]">
-              Telemetry Architecture Protocol Note
-            </span>
-            <p className="text-ink-secondary leading-relaxed mt-0.5">
-              Backend intentionally does not expose an unpaged <code className="bg-surface-container px-1.5 py-0.5 rounded text-burgundy font-mono font-semibold">GET /api/admin/clients</code> listing endpoint to guarantee zero-knowledge isolation. Retain the generated <strong className="text-ink-primary font-semibold">Client ID</strong> returned upon onboarding to orchestrate downstream credentials and telemetry pipelines.
-            </p>
-          </div>
-          <span className="px-2.5 py-1 rounded bg-tertiary-container text-white text-[10px] uppercase font-bold tracking-wider shrink-0 self-start sm:self-center">
-            Zero-Knowledge Scope
-          </span>
-        </div>
-      </div>
-
-      {error && (
+      {/* Global Alerts */}
+      {clientsError && (
         <AlertMessage
           type="error"
-          title="Client Onboarding Error"
-          message={error}
-          onDismiss={() => setError(null)}
-          className="mb-6"
+          title="Registry Retrieval Error"
+          message={clientsError}
+          onDismiss={() => setClientsError(null)}
         />
       )}
 
-      {/* Main Form & Success Canvas Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Onboarding Form (7 cols on lg) */}
-        <div className="lg:col-span-7 bg-card-surface rounded-xl p-6 border border-hairline/60 shadow-sm flex flex-col gap-5">
+      {/* Newly Created Client Success Banner */}
+      {createdClient && (
+        <div className="w-full bg-surface-container-high rounded-xl p-5 border border-hairline/60 flex flex-col gap-4 shadow-sm animate-fadeIn">
+          <div className="flex items-center justify-between pb-3 border-b border-hairline/40">
+            <div className="flex items-center gap-2 text-burgundy">
+              <ShieldCheck className="w-5 h-5" />
+              <h3 className="font-serif text-base font-semibold">
+                Client Tenant Successfully Registered
+              </h3>
+            </div>
+            <button
+              onClick={() => setCreatedClient(null)}
+              className="text-xs text-ink-secondary hover:text-ink-primary font-semibold"
+            >
+              Dismiss
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="bg-card-surface p-3 rounded-lg border border-hairline/40">
+              <span className="text-[10px] uppercase font-bold text-ink-secondary block mb-1">
+                Client Name &amp; Slug
+              </span>
+              <span className="font-semibold text-ink-primary block text-sm">
+                {createdClient.name}
+              </span>
+              <span className="font-mono text-ink-secondary text-[11px]">
+                {createdClient.slug}
+              </span>
+            </div>
+
+            <div className="bg-card-surface p-3 rounded-lg border border-hairline/40">
+              <span className="text-[10px] uppercase font-bold text-ink-secondary block mb-1">
+                Client ID
+              </span>
+              <div className="flex items-center justify-between gap-2">
+                <code className="font-mono text-xs font-bold text-burgundy truncate">
+                  {createdClient._id}
+                </code>
+                <button
+                  onClick={() => copyToClipboard(createdClient._id, 'new-client')}
+                  className="p-1 hover:bg-surface-container rounded text-burgundy shrink-0 cursor-pointer"
+                  title="Copy Client ID"
+                >
+                  {copiedId === 'new-client' ? (
+                    <Check className="w-3.5 h-3.5 text-[#3B5738]" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-card-surface p-3 rounded-lg border border-hairline/40 flex flex-col justify-center gap-2">
+              <span className="text-[10px] uppercase font-bold text-ink-secondary">
+                Immediate Next Steps
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate(`/api-keys?clientId=${createdClient._id}`)}
+                  className="flex-1 py-1.5 px-2 bg-burgundy text-white rounded text-[11px] font-bold text-center hover:bg-burgundy-hover transition-colors"
+                >
+                  Issue API Key
+                </button>
+                <button
+                  onClick={() => navigate(`/create-user?clientId=${createdClient._id}`)}
+                  className="flex-1 py-1.5 px-2 bg-surface-container text-burgundy rounded text-[11px] font-bold text-center hover:bg-surface-container-high transition-colors"
+                >
+                  Create User
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible Onboard New Client Form */}
+      {showOnboardForm && isSuperAdmin && (
+        <div className="w-full bg-card-surface rounded-xl p-6 border border-hairline/60 shadow-sm flex flex-col gap-5">
           <div className="flex items-center justify-between pb-3 border-b border-hairline/40">
             <div className="flex items-center gap-2.5">
               <span className="w-7 h-7 rounded bg-burgundy text-white flex items-center justify-center font-serif text-sm font-bold">
-                01
+                +
               </span>
               <div>
                 <h3 className="font-serif text-lg font-medium text-burgundy">
-                  Client Onboarding
+                  Onboard New Tenant Client
                 </h3>
                 <span className="text-[10px] uppercase tracking-wider text-ink-secondary font-mono">
                   POST /api/admin/client/onboard
                 </span>
               </div>
             </div>
-            <Building2 className="w-5 h-5 text-ink-secondary" />
+            <button
+              onClick={() => setShowOnboardForm(false)}
+              className="text-xs text-ink-secondary hover:text-ink-primary font-semibold"
+            >
+              Cancel
+            </button>
           </div>
+
+          {formError && (
+            <AlertMessage
+              type="error"
+              title="Onboarding Error"
+              message={formError}
+              onDismiss={() => setFormError(null)}
+            />
+          )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -142,196 +274,220 @@ export const ClientsPage = () => {
                 <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="client-name">
                   Client Legal Name <span className="text-burgundy">*</span>
                 </label>
-                <div className="relative">
-                  <input
-                    id="client-name"
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Acme Fintech Cloud"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all"
-                  />
-                </div>
+                <input
+                  id="client-name"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Acme Fintech Cloud"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
+                />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="client-email">
                   Operations Email <span className="text-burgundy">*</span>
                 </label>
-                <div className="relative">
-                  <input
-                    id="client-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="ops@acme.io"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all"
-                  />
-                </div>
+                <input
+                  id="client-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="ops@acmecloud.io"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
+                />
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="client-desc">
-                Tenant Operational Scope / Description
-              </label>
-              <textarea
-                id="client-desc"
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="High-frequency payment processing telemetry cluster..."
-                className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all resize-none"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="client-website">
+                  Website URL <span className="text-ink-secondary font-normal">(Optional)</span>
+                </label>
+                <input
+                  id="client-website"
+                  type="url"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="https://acmecloud.io"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="client-desc">
+                  Description / Operational Scope <span className="text-ink-secondary font-normal">(Optional)</span>
+                </label>
+                <input
+                  id="client-desc"
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Core banking payment ingest gateway"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all font-sans"
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-xs uppercase font-semibold text-ink-primary" htmlFor="client-web">
-                Client Origin Website / FQDN
-              </label>
-              <input
-                id="client-web"
-                type="url"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="https://acme.io"
-                className="w-full px-3 py-2 rounded-lg bg-surface-container-low border border-hairline/60 text-sm outline-none focus:border-burgundy focus:bg-card-surface transition-all"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-hairline/40">
-              <span className="text-[11px] text-ink-secondary">
-                Generates immutable cryptographic client ID and slug
-              </span>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowOnboardForm(false)}
+                className="px-4 py-2 rounded-lg border border-hairline/60 text-xs font-semibold text-ink-secondary hover:text-ink-primary transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
-                disabled={isLoading}
-                className="px-5 py-2.5 bg-burgundy hover:bg-burgundy-dark text-white text-xs font-semibold uppercase tracking-wider rounded-lg shadow-sm hover:opacity-95 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-lg bg-burgundy hover:bg-burgundy-hover text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-sm"
               >
-                <span>{isLoading ? 'Onboarding...' : 'Onboard Client Tenant'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                {isSubmitting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSubmitting ? 'Provisioning...' : 'Provision Client Tenant'}</span>
               </button>
             </div>
           </form>
         </div>
+      )}
 
-        {/* Success Card / Details Display (5 cols on lg) */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
-          {createdClient ? (
-            <div className="bg-surface-container-low rounded-xl p-6 border border-hairline/60 shadow-sm flex flex-col gap-4 animate-in fade-in duration-300">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-tertiary-container animate-pulse" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-tertiary-container">
-                    Tenant Partition Provisioned
-                  </span>
-                </div>
-                <span className="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container text-[10px] font-bold">
-                  201 Created
-                </span>
-              </div>
-
-              {/* Display Fields */}
-              <div className="space-y-3 bg-card-surface p-4 rounded-lg border border-hairline/60">
-                <div>
-                  <span className="block text-[10px] uppercase font-bold text-ink-secondary mb-1">
-                    Cryptographic Client ID
-                  </span>
-                  <div className="flex items-center justify-between bg-surface-container-low px-3 py-1.5 rounded border border-hairline/40">
-                    <code className="text-xs font-mono font-bold text-burgundy select-all">
-                      {createdClient._id}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={copyClientId}
-                      className="flex items-center gap-1 text-[11px] text-burgundy hover:text-ink-primary font-semibold cursor-pointer"
-                      title="Copy Client ID"
-                    >
-                      {copiedId ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-[#3B5738]" />
-                          <span className="text-[#3B5738]">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <span className="block text-[10px] uppercase font-bold text-ink-secondary mb-1">
-                    Generated Tenant Slug
-                  </span>
-                  <div className="bg-surface-container-low px-3 py-1.5 rounded border border-hairline/40 text-xs font-semibold text-ink-primary">
-                    {createdClient.slug}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="block text-[10px] uppercase font-bold text-ink-secondary mb-1">
-                    Client Legal Name
-                  </span>
-                  <div className="text-xs font-semibold text-ink-primary">
-                    {createdClient.name}
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions to Continue Workflow */}
-              <div className="pt-2 border-t border-hairline/40 flex flex-col gap-2">
-                <span className="text-xs font-semibold text-ink-secondary">
-                  Downstream Provisioning Workflows:
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => navigate(`/create-user?clientId=${createdClient._id}`)}
-                    className="px-3 py-2 bg-surface-container hover:bg-surface-container-high text-burgundy text-xs font-bold uppercase tracking-wider rounded flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Create User</span>
-                  </button>
-                  <button
-                    onClick={() => navigate(`/api-keys?clientId=${createdClient._id}`)}
-                    className="px-3 py-2 bg-surface-container hover:bg-surface-container-high text-burgundy text-xs font-bold uppercase tracking-wider rounded flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <KeyRound className="w-3.5 h-3.5" />
-                    <span>Issue API Key</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-card-surface rounded-xl p-6 border border-hairline/60 shadow-sm flex flex-col gap-3 text-xs text-ink-secondary">
-              <h4 className="font-serif text-base font-medium text-burgundy">
-                Onboarding Protocol Checklist
-              </h4>
-              <ul className="space-y-2 leading-relaxed">
-                <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-burgundy mt-1.5 shrink-0" />
-                  <span>The client slug is derived automatically from the client name.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-burgundy mt-1.5 shrink-0" />
-                  <span>Client records are isolated tenants for all metrics and event aggregation.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-burgundy mt-1.5 shrink-0" />
-                  <span>After creating a client, issue an API key and create a client-admin user to activate ingestion.</span>
-                </li>
-              </ul>
-            </div>
-          )}
+      {/* Registered Clients Registry Table */}
+      <div className="p-5 sm:p-6 rounded-xl bg-card-surface border border-hairline/60 shadow-sm flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-hairline/40 gap-2">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-secondary">
+              Tenant Directory
+            </span>
+            <h3 className="font-serif text-lg font-medium text-burgundy">
+              Registered Monitored Clients ({clients.length})
+            </h3>
+          </div>
+          <span className="text-xs text-ink-secondary">
+            Telemetry metrics and API credentials are isolated strictly by Client ID.
+          </span>
         </div>
+
+        {isLoadingClients ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-ink-secondary">
+            <RefreshCw className="w-6 h-6 animate-spin text-burgundy" />
+            <span className="text-xs">Loading registered clients...</span>
+          </div>
+        ) : clients.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-center">
+            <Building2 className="w-10 h-10 text-ink-secondary opacity-40" />
+            <div className="text-sm font-semibold text-ink-primary">No Client Tenants Registered</div>
+            <p className="text-xs text-ink-secondary max-w-md">
+              There are currently no monitored client tenants in the registry. Onboard your first organization above to start ingesting telemetry.
+            </p>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowOnboardForm(true)}
+                className="mt-2 px-4 py-2 bg-burgundy text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-burgundy-hover transition-colors shadow-sm cursor-pointer"
+              >
+                Onboard First Client
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-surface-container-low text-ink-secondary font-semibold border-b border-hairline/60">
+                  <th className="py-2.5 px-3">Client Name</th>
+                  <th className="py-2.5 px-3">Client ID</th>
+                  <th className="py-2.5 px-3">Operations Email</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Registered</th>
+                  <th className="py-2.5 px-3 text-right">Quick Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hairline/40 text-ink-primary">
+                {clients.map((client) => (
+                  <tr key={client._id} className="hover:bg-surface-container-low transition-colors">
+                    <td className="py-3 px-3">
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-ink-primary text-sm">
+                          {client.name}
+                        </span>
+                        <span className="font-mono text-ink-secondary text-[11px]">
+                          {client.slug}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-1.5 font-mono text-burgundy font-semibold">
+                        <span>{client._id}</span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(client._id, client._id)}
+                          className="p-1 hover:bg-surface-container rounded text-ink-secondary hover:text-burgundy transition-colors cursor-pointer"
+                          title="Copy Client ID"
+                        >
+                          {copiedId === client._id ? (
+                            <Check className="w-3.5 h-3.5 text-[#3B5738]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+
+                    <td className="py-3 px-3 text-ink-secondary font-sans">
+                      {client.email}
+                    </td>
+
+                    <td className="py-3 px-3">
+                      <StatusBadge
+                        type={client.isActive ? 'active' : 'inactive'}
+                        label={client.isActive ? 'Active' : 'Suspended'}
+                      />
+                    </td>
+
+                    <td className="py-3 px-3 text-ink-secondary font-mono text-[11px]">
+                      {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
+
+                    <td className="py-3 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => navigate(`/api-keys?clientId=${client._id}`)}
+                          className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high text-burgundy font-semibold text-[11px] rounded flex items-center gap-1 transition-colors cursor-pointer"
+                          title="View / Issue API Keys"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          <span>API Keys</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleViewAnalytics(client._id)}
+                          className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high text-ink-primary font-semibold text-[11px] rounded flex items-center gap-1 transition-colors cursor-pointer"
+                          title="View Scoped Analytics"
+                        >
+                          <BarChart3 className="w-3 h-3" />
+                          <span>Analytics</span>
+                        </button>
+
+                        <button
+                          onClick={() => navigate(`/create-user?clientId=${client._id}`)}
+                          className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high text-ink-secondary hover:text-ink-primary font-semibold text-[11px] rounded flex items-center gap-1 transition-colors cursor-pointer"
+                          title="Create Client User"
+                        >
+                          <UserPlus className="w-3 h-3" />
+                          <span>User</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 export default ClientsPage;
-

@@ -152,4 +152,53 @@ export class ClientController {
             next(error);
         }
     }
+    /**
+     * Get clients list accessible by the authenticated user
+     * @param {Request} req
+     * @param {Response} res
+     * @param {Function} next
+     */
+    async getClients(req, res, next) {
+        try {
+            const clients = await this.clientService.getClients(req.user);
+            return res
+                .status(200)
+                .json(
+                    ResponseFormatter.success(
+                        clients,
+                        "Clients retrieved successfully",
+                        200,
+                    ),
+                );
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /**
+     * Get a specific client by ID
+     * @param {Request} req
+     * @param {Response} res
+     * @param {Function} next
+     */
+    async getClientById(req, res, next) {
+        try {
+            const { clientId } = req.params;
+            const client = await this.clientService.getClientById(
+                clientId,
+                req.user,
+            );
+            return res
+                .status(200)
+                .json(
+                    ResponseFormatter.success(
+                        client,
+                        "Client retrieved successfully",
+                        200,
+                    ),
+                );
+        } catch (error) {
+            next(error);
+        }
+    }
 }

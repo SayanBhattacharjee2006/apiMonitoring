@@ -57,7 +57,12 @@ export const SetupAdminPage = () => {
     setError(null);
 
     if (!username.trim() || !email.trim()) {
-      setError('Please provide username and emergency administrator email.');
+      setError('Please provide both username and email.');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_.-]+$/.test(username.trim())) {
+      setError("Username can only contain letters, numbers, underscores, dots, or hyphens (cannot contain '@' or spaces). For example: sayan or admin.");
       return;
     }
 
@@ -156,7 +161,7 @@ export const SetupAdminPage = () => {
                 htmlFor="admin-username"
                 className="block text-xs font-semibold uppercase tracking-wider text-ink-primary"
               >
-                Super Admin Username *
+                Username *
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-ink-secondary pointer-events-none">
@@ -168,10 +173,13 @@ export const SetupAdminPage = () => {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="cluster_lead"
+                  placeholder="e.g. sayan or superadmin"
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-lg bg-surface-container-low text-ink-primary placeholder:text-ink-secondary/50 border border-hairline/60 focus:outline-none focus:bg-card-surface focus:border-burgundy transition-all text-sm font-sans"
                 />
               </div>
+              <p className="text-[11px] text-ink-secondary leading-normal">
+                Letters, numbers, underscores, dots, or hyphens (not an email address).
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -179,7 +187,7 @@ export const SetupAdminPage = () => {
                 htmlFor="admin-email"
                 className="block text-xs font-semibold uppercase tracking-wider text-ink-primary"
               >
-                Emergency Admin Email *
+                Email Address *
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-ink-secondary pointer-events-none">
@@ -191,10 +199,13 @@ export const SetupAdminPage = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@cluster.internal"
+                  placeholder="e.g. sayan@example.com"
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-lg bg-surface-container-low text-ink-primary placeholder:text-ink-secondary/50 border border-hairline/60 focus:outline-none focus:bg-card-surface focus:border-burgundy transition-all text-sm font-sans"
                 />
               </div>
+              <p className="text-[11px] text-ink-secondary leading-normal">
+                Your administrator contact email.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

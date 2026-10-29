@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart as LineChartIcon,
+  Building,
   Filter,
   Layers,
   Clock,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import analyticsService from '../services/analyticsService';
+import clientService from '../services/clientService';
 import TimeFilterStrip from '../components/dashboard/TimeFilterStrip';
 import RequestVolumeChart from '../components/charts/RequestVolumeChart';
 import LatencyTrendChart from '../components/charts/LatencyTrendChart';
@@ -18,8 +20,23 @@ import EmptyState from '../components/common/EmptyState';
 import AlertMessage from '../components/common/AlertMessage';
 
 export const AnalyticsPage = () => {
-  const { user, role, activeScopeClientId } = useAuthStore();
+  const { user, role, activeScopeClientId, setActiveScopeClientId } = useAuthStore();
   const isSuperAdmin = role === 'super-admin';
+
+  const [clients, setClients] = useState([]);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      clientService
+        .getClients()
+        .then((res) => {
+          if (res?.data && Array.isArray(res.data)) {
+            setClients(res.data);
+          }
+        })
+        .catch((err) => console.error('Failed to load clients for analytics:', err));
+    }
+  }, [isSuperAdmin]);
 
   const [activePreset, setActivePreset] = useState('24h');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
@@ -104,7 +121,24 @@ export const AnalyticsPage = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {isSuperAdmin && (
+            <div className="flex items-center gap-1.5 bg-card-surface px-3 py-1.5 rounded-lg border border-hairline/60 shadow-sm">
+              <Building className="w-4 h-4 text-burgundy shrink-0" />
+              <select
+                value={activeScopeClientId || ''}
+                onChange={(e) => setActiveScopeClientId(e.target.value || null)}
+                className="text-xs font-semibold text-burgundy bg-transparent outline-none cursor-pointer"
+              >
+                <option value="">Cluster Global (All Tenants)</option>
+                {clients.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name} ({c.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <StatusBadge
             type={isSuperAdmin ? 'super-admin' : 'client-admin'}
             label={isSuperAdmin ? (activeScopeClientId ? `Client: ${activeScopeClientId.substring(0, 8)}...` : 'Cluster Global') : 'Tenant Assoc'}

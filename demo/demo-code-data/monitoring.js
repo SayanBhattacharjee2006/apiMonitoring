@@ -8,7 +8,7 @@ const monitoringMiddleware = (options = {}) => {
     const {
         apiKey = process.env.MONITORING_API_KEY,
         endpoint = process.env.MONITORING_ENDPOINT ||
-            "http://localhost:5000/api/hit",
+            "http://127.0.0.1:5000/api/hit",
         serviceName = process.env.SERVICE_NAME || "my-service",
         enableLogging = process.env.NODE_ENV !== "production",
         timeout = 3000,

@@ -22,6 +22,12 @@ export const onboardSuperAdminSchema = {
     username: {
         required: true,
         minLength: 3,
+        custom: (value) => {
+            if (!value) return null;
+            return /^[a-zA-Z0-9_.-]+$/.test(value)
+                ? null
+                : "Username can only contain letters, numbers, underscores, dots, or hyphens (cannot be an email address)";
+        }
     },
     password: {
         required: true,

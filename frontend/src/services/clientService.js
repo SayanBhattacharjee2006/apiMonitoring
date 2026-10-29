@@ -20,6 +20,27 @@ export const clientService = {
   },
 
   /**
+   * List all clients accessible to the current user
+   * (Super Admin gets all clients; Client Admin/Viewer gets their assigned client)
+   */
+  async getClients() {
+    const response = await apiClient.get('/api/admin/clients');
+    return response.data; // { success: true, message, data: clients }
+  },
+
+  /**
+   * Get single client by ID
+   * @param {string} clientId
+   */
+  async getClientById(clientId) {
+    if (!clientId) {
+      throw new Error('Client ID is required');
+    }
+    const response = await apiClient.get(`/api/admin/client/${clientId}`);
+    return response.data;
+  },
+
+  /**
    * Create a new client user under a specific client tenant
    * @param {string} clientId - Target client ID
    * @param {Object} userData
@@ -43,4 +64,3 @@ export const clientService = {
 };
 
 export default clientService;
-
