@@ -54,6 +54,60 @@ export class AuthController {
     }
 
     /**
+     * Registers a new independent tenant organization and its initial client administrator.
+     * @param {Request} req - The request object containing tenant and admin details.
+     * @param {Response} res - The response object used to send the response.
+     * @param {Function} next - The next middleware function in the request-response cycle.
+     */
+    async registerTenant(req, res, next) {
+        try {
+            const {
+                name,
+                organizationName,
+                email,
+                organizationEmail,
+                website,
+                description,
+                username,
+                adminUsername,
+                adminEmail,
+                password,
+            } = req.body;
+
+            const tenantData = {
+                name: (name || organizationName || "").trim(),
+                email: (email || organizationEmail || "").trim(),
+                website: website ? website.trim() : "",
+                description: description ? description.trim() : "",
+                username: (username || adminUsername || "").trim(),
+                adminEmail: adminEmail ? adminEmail.trim() : (email || organizationEmail || "").trim(),
+                password,
+            };
+
+            const { token, user, client } =
+                await this.authService.registerTenant(tenantData);
+
+            res.cookie("authToken", token, {
+                httpOnly: config.cookie.httpOnly,
+                secure: config.cookie.secure,
+                maxAge: config.cookie.expires,
+            });
+
+            return res
+                .status(201)
+                .json(
+                    ResponseFormatter.success(
+                        { user, client },
+                        "Tenant registered successfully",
+                        201,
+                    ),
+                );
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /**
      * Registers a new user.
      * @param {Request} req - The request object containing user details.
      * @param {Response} res - The response object used to send the response.

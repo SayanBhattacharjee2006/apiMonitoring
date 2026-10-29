@@ -1,7 +1,7 @@
-
 import MongoUserRepository from "../repositories/UserRepository.js";
-import {AuthController} from "../controllers/authController.js";
-import {AuthService} from "../services/authService.js";
+import MongoClientRepository from "../../clientService/repositories/ClientRepository.js";
+import { AuthController } from "../controllers/authController.js";
+import { AuthService } from "../services/authService.js";
 
 /**
  * Dependency Injection Container for the Auth module.
@@ -13,16 +13,17 @@ class container {
     static init() {
         // initialize repositories
         const repositories = {
-            userRepository : MongoUserRepository
+            userRepository: MongoUserRepository,
+            clientRepository: MongoClientRepository
         }
-        
+
         // initialize services with their respective repositories
         const services = {
-            authService : new AuthService(repositories.userRepository)
+            authService: new AuthService(repositories.userRepository, repositories.clientRepository)
         }
         // initialize controllers with their respective services
         const controllers = {
-            authController : new AuthController(services.authService)
+            authController: new AuthController(services.authService)
         }
 
         return {
@@ -35,5 +36,5 @@ class container {
 }
 
 const initalized = container.init();
-export {container}
+export { container }
 export default initalized

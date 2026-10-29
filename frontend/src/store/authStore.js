@@ -8,7 +8,7 @@ export const useAuthStore = create((set, get) => ({
   isAuthenticated: false,
   isRestoring: true,
   error: null,
-  
+
   // Scoping context for Super Admins (null means Global Cluster)
   activeScopeClientId: null,
 
@@ -81,6 +81,31 @@ export const useAuthStore = create((set, get) => ({
   },
 
   /**
+   * Register a new independent tenant organization with initial admin
+   */
+  registerTenant: async (tenantData) => {
+    set({ error: null });
+    try {
+      const response = await authService.registerTenant(tenantData);
+      const payloadData = response.data || {};
+      const user = payloadData.user || payloadData;
+      const client = payloadData.client || {};
+      set({
+        user,
+        role: user.role || 'client-admin',
+        clientId: user.clientId || client.id || null,
+        isAuthenticated: true,
+        isRestoring: false,
+        error: null,
+      });
+      return response;
+    } catch (err) {
+      set({ error: err.message });
+      throw err;
+    }
+  },
+
+  /**
    * Onboard initial super admin
    */
   onboardSuperAdmin: async ({ username, password, email }) => {
@@ -132,4 +157,3 @@ export const useAuthStore = create((set, get) => ({
 }));
 
 export default useAuthStore;
-

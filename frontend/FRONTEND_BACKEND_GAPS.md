@@ -1,6 +1,6 @@
 # API Monitoring Frontend-Backend Capabilities, Gaps & Multi-Tenant Audit
 
-This document catalogs architectural discrepancies, missing backend endpoints, and capabilities represented in the Google Stitch design system versus the current Express/MongoDB/PostgreSQL backend implementation.
+This document catalogs architectural discrepancies, backend endpoints, and capabilities represented in the Google Stitch design system versus the current Express/MongoDB/PostgreSQL backend implementation.
 
 ---
 
@@ -8,10 +8,10 @@ This document catalogs architectural discrepancies, missing backend endpoints, a
 
 | Capability / User Journey | Backend Status | Backend Endpoint | Frontend Handling |
 | :--- | :--- | :--- | :--- |
-| **Independent Tenant Registration** | **Not Supported** | No public endpoint exists. `POST /api/auth/register` requires `super-admin` authentication and an existing `clientId`. `POST /api/admin/client/onboard` also requires `super-admin`. | Added `RegisterTenantPage.jsx` (`/register`) to collect organization + initial admin details. Added graceful error handling informing users that the backend currently requires Super Admin authorization for tenant provisioning. |
+| **Independent Tenant Registration** | **Fully Supported** | `POST /api/auth/register-tenant` | Implemented in `RegisterTenantPage.jsx` (`/register`). Collects organization details and initial admin credentials. Authenticates immediately upon creation and redirects to `/dashboard`. |
 | **Super Admin Bootstrap** | **Fully Supported** | `POST /api/auth/onboard-super-admin` | Implemented in `LoginPage.jsx` under the *Initial Setup* tab. Enforces bootstrap state guard (succeeds only if 0 super admins exist in cluster). |
 | **Super Admin Provisioning** | **Fully Supported** | `POST /api/admin/client/onboard` + `POST /api/admin/client/:clientId/users` | Implemented across `ClientsPage.jsx` and `CreateUserPage.jsx`. |
-| **Role-Based Privilege Escalation Prevention** | **Frontend Guarded** | `registrationSchema` currently accepts any valid role (including `super-admin`). | Frontend strictly requests `client-admin` registration for tenants, avoiding privilege escalation. |
+| **Role-Based Privilege Escalation Prevention** | **Server Enforced** | `POST /api/auth/register-tenant` | The server strictly forces `role: client-admin` regardless of client request body, preventing unauthorized privilege escalation to `super-admin`. |
 
 ---
 
