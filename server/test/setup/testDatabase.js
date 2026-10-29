@@ -15,6 +15,7 @@ export async function connectDatabases() {
     if (!mongodb.getConnection() || mongoose.connection.readyState === 0) {
         await mongodb.connect();
     }
+    await User.syncIndexes();
 
     // Test Postgres connection to test database
     await postgres.testConnection();

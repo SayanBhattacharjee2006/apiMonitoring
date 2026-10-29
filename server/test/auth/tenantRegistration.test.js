@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import mongoose from "mongoose";
 import { app } from "../../src/server.js";
@@ -7,6 +7,7 @@ import { randomSuffix, DEFAULT_TEST_PASSWORD } from "../helpers/testData.js";
 import { APPLICATION_ROLES } from "../../src/shared/constants/roles.js";
 import User from "../../src/shared/models/User.js";
 import Client from "../../src/shared/models/Client.js";
+import authContainer from "../../src/services/authService/Dependencies/dependencies.js";
 
 const VALID_STRONG_PASSWORD = "ValidP@ssw0rd2026!";
 
@@ -90,6 +91,59 @@ describe("Multi-Tenant Self-Service Registration, Bootstrap & Revocation Verific
             expect(authRes.body.data.role).toBe(APPLICATION_ROLES.SUPER_ADMIN);
         });
 
+        it("rejects Super Admin onboarding when an invalid bootstrap secret is provided (returns 403)", async () => {
+            // 1. Tenant registers first
+            await request(app)
+                .post("/api/auth/register-tenant")
+                .send({
+                    name: `Gamma Corp ${randomSuffix()}`,
+                    email: `ops_${randomSuffix()}@gamma.io`,
+                    username: `gamma_admin_${randomSuffix()}`,
+                    password: VALID_STRONG_PASSWORD,
+                });
+
+            // 2. An unauthorized caller provides wrong bootstrap secret
+            const res = await request(app)
+                .post("/api/auth/onboard-super-admin")
+                .set("x-bootstrap-secret", "completely-wrong-bootstrap-secret")
+                .send({
+                    username: `imposter_admin_${randomSuffix()}`,
+                    email: `imposter_${randomSuffix()}@platform.local`,
+                    password: VALID_STRONG_PASSWORD,
+                });
+
+            expect(res.status).toBe(403);
+            expect(res.body.success).toBe(false);
+            expect(res.body.message).toMatch(/valid bootstrap secret required/i);
+        });
+
+        it("prevents race conditions and multiple Super Admins during concurrent bootstrap attempts", async () => {
+            const admin1 = {
+                username: `concurrent_admin_1_${randomSuffix()}`,
+                email: `concurrent_1_${randomSuffix()}@platform.local`,
+                password: VALID_STRONG_PASSWORD,
+            };
+            const admin2 = {
+                username: `concurrent_admin_2_${randomSuffix()}`,
+                email: `concurrent_2_${randomSuffix()}@platform.local`,
+                password: VALID_STRONG_PASSWORD,
+            };
+
+            // Fire both bootstrap requests simultaneously
+            const [res1, res2] = await Promise.all([
+                request(app).post("/api/auth/onboard-super-admin").send(admin1),
+                request(app).post("/api/auth/onboard-super-admin").send(admin2),
+            ]);
+
+            // Exactly one must succeed (201) and one must be rejected (400)
+            const statuses = [res1.status, res2.status].sort();
+            expect(statuses).toEqual([201, 400]);
+
+            // Database-level verification: exactly 1 Super Admin in MongoDB
+            const superAdminCount = await User.countDocuments({ role: APPLICATION_ROLES.SUPER_ADMIN });
+            expect(superAdminCount).toBe(1);
+        });
+
         it("strictly rejects subsequent Super Admin creation once a Super Admin exists (returns 400)", async () => {
             // 1. Create first Super Admin
             await request(app)
@@ -112,6 +166,41 @@ describe("Multi-Tenant Self-Service Registration, Bootstrap & Revocation Verific
 
             expect(res.status).toBe(400);
             expect(res.body.message).toMatch(/Super admin already exists/i);
+        });
+    });
+
+    describe("2.2 Tenant Registration Compensating Rollback Verification", () => {
+        it("rolls back both tenant client and user if a failure occurs after user creation", async () => {
+            const tenantOrgName = `Rollback Corp ${randomSuffix()}`;
+            const tenantUsername = `rollback_admin_${randomSuffix()}`;
+            const tenantEmail = `rollback_${randomSuffix()}@org.io`;
+
+            // Spy on generateToken to simulate a failure right after User document creation
+            const generateTokenSpy = vi
+                .spyOn(authContainer.services.authService, "generateToken")
+                .mockImplementationOnce(() => {
+                    throw new Error("Simulated failure after user creation");
+                });
+
+            const res = await request(app)
+                .post("/api/auth/register-tenant")
+                .send({
+                    name: tenantOrgName,
+                    email: tenantEmail,
+                    username: tenantUsername,
+                    password: VALID_STRONG_PASSWORD,
+                });
+
+            expect(res.status).toBe(500);
+
+            // Clean database state: Neither the Client nor the User should persist
+            const orphanedUser = await User.findOne({ username: tenantUsername });
+            expect(orphanedUser).toBeNull();
+
+            const orphanedClient = await Client.findOne({ name: tenantOrgName });
+            expect(orphanedClient).toBeNull();
+
+            generateTokenSpy.mockRestore();
         });
     });
 

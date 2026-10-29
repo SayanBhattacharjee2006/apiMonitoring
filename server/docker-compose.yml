@@ -91,7 +91,8 @@ services:
       RABBITMQ_URL: amqp://api_user:secure_password@rabbitmq:5672/api_monitoring
       RABBITMQ_QUEUE: api_hits
       # Security
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      SUPER_ADMIN_BOOTSTRAP_SECRET: ${SUPER_ADMIN_BOOTSTRAP_SECRET:?SUPER_ADMIN_BOOTSTRAP_SECRET is required}
       JWT_EXPIRES_IN: 24h
       # Rate Limiting
       RATE_LIMIT_WINDOW_MS: 60000
@@ -135,7 +136,7 @@ services:
       RABBITMQ_URL: amqp://api_user:secure_password@rabbitmq:5672/api_monitoring
       RABBITMQ_QUEUE: api_hits
       # Security
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
     volumes:
       - ./logs:/app/logs
     networks:

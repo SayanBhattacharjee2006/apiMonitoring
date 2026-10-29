@@ -32,7 +32,7 @@ export const LandingPage = () => {
   const snippets = {
     curl: `curl -X POST http://localhost:5000/api/hit \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: pls_live_948f93e920d3ba84c6e1" \\
+  -H "x-api-key: YOUR_API_KEY" \\
   -d '{
     "serviceName": "billing-service",
     "endpoint": "/v1/charges/create",
@@ -255,15 +255,15 @@ response = requests.post(
 
                 <div className="bg-surface-container-low p-4 rounded-lg flex flex-col gap-1 border border-hairline/40">
                   <span className="text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
-                    p95 Latency Ledger
+                    Average Latency
                   </span>
                   <div className="flex items-baseline gap-2">
                     <span className="font-serif text-2xl sm:text-3xl font-bold text-burgundy tabular-nums">
                       42.1 ms
                     </span>
-                    <span className="text-ink-secondary text-xs font-semibold">p99: 68ms</span>
+                    <span className="text-ink-secondary text-xs font-semibold">weighted mean</span>
                   </div>
-                  <span className="text-xs text-ink-secondary">-4ms from 24h baseline</span>
+                  <span className="text-xs text-ink-secondary">Arithmetic mean rollup</span>
                 </div>
 
                 <div className="bg-surface-container-low p-4 rounded-lg flex flex-col gap-1 border border-hairline/40">
@@ -290,7 +290,7 @@ response = requests.post(
                     <div className="flex items-center gap-2">
                       <Activity className="w-4 h-4 text-burgundy" />
                       <span className="font-serif text-sm font-semibold text-ink-primary">
-                        Sub-Second Hit Latency Spectrum
+                        Endpoint Latency Spectrum
                       </span>
                     </div>
                     <span className="text-xs text-ink-secondary font-medium">
@@ -371,7 +371,7 @@ response = requests.post(
                     <span>T - 60 minutes</span>
                     <span className="inline-flex items-center gap-1.5 text-burgundy font-semibold">
                       <span className="w-1.5 h-1.5 rounded-full bg-burgundy" />
-                      p95 Incident Snapshot (48.2ms burst absorbed)
+                      Mean Latency Spike (48.2ms burst recorded)
                     </span>
                     <span>Present Moment</span>
                   </div>
@@ -440,8 +440,8 @@ response = requests.post(
                   </div>
 
                   <div className="mt-auto pt-2 flex items-center justify-between text-xs text-ink-secondary border-t border-hairline/40">
-                    <span>SHA-512 Hash Verified</span>
-                    <span className="text-burgundy font-semibold">Zero Unhashed Logs</span>
+                    <span>Scoped API Key Verified</span>
+                    <span className="text-burgundy font-semibold">Tenant Data Isolated</span>
                   </div>
                 </div>
               </div>
@@ -478,10 +478,10 @@ response = requests.post(
 
             <div className="flex flex-col gap-1">
               <span className="font-serif text-3xl sm:text-4xl lg:text-5xl text-burgundy font-bold leading-tight tabular-nums">
-                0
+                100%
               </span>
-              <span className="text-sm font-semibold text-ink-primary">Plaintext Secrets Stored</span>
-              <span className="text-xs text-ink-secondary">Salted sha-512 key hash tokens</span>
+              <span className="text-sm font-semibold text-ink-primary">Tenant Data Isolation</span>
+              <span className="text-xs text-ink-secondary">Strict database-level partitions</span>
             </div>
           </div>
         </section>
@@ -546,7 +546,7 @@ response = requests.post(
                   API-Key Ingestion (/api/hit)
                 </h3>
                 <p className="text-xs text-ink-secondary leading-relaxed">
-                  Micro-gateway intercepts incoming packets, verifies the cryptographic hash against tenant memory caches in &lt;0.4ms, and accepts valid payloads.
+                  Ingestion gateway authenticates incoming requests via tenant-scoped API keys, validates required telemetry fields, and queues hits for asynchronous processing.
                 </p>
                 <div className="mt-auto pt-3">
                   <span className="text-[11px] font-mono font-semibold bg-surface-container-low px-3 py-1.5 rounded block text-ink-secondary border border-hairline/40">
@@ -569,7 +569,7 @@ response = requests.post(
                   RabbitMQ Event Broker
                 </h3>
                 <p className="text-xs text-ink-secondary leading-relaxed">
-                  Telemetric envelopes enter high-durability exchange partitions. Bursts up to 250,000 hits/sec are seamlessly absorbed with zero backpressure on client APIs.
+                  Telemetry events enter durable RabbitMQ queue buffers, absorbing traffic spikes with zero blocking of customer-facing endpoints.
                 </p>
                 <div className="mt-auto pt-3">
                   <span className="text-[11px] font-mono font-semibold bg-surface-container-low px-3 py-1.5 rounded block text-ink-secondary border border-hairline/40">
@@ -592,7 +592,7 @@ response = requests.post(
                   Parallel Stream Workers
                 </h3>
                 <p className="text-xs text-ink-secondary leading-relaxed">
-                  Stateless worker daemons normalize schema variations, compute endpoint response percentiles, detect anomalous response bursts, and enrich trace contexts.
+                  Background worker consumer dequeues hit events, records raw hit documents in MongoDB, and updates aggregated PostgreSQL metrics.
                 </p>
                 <div className="mt-auto pt-3">
                   <span className="text-[11px] font-mono font-semibold bg-surface-container-low px-3 py-1.5 rounded block text-ink-secondary border border-hairline/40">
@@ -615,7 +615,7 @@ response = requests.post(
                   Mongo &amp; Postgres Storage
                 </h3>
                 <p className="text-xs text-ink-secondary leading-relaxed">
-                  Dual-persistence layer: high-volume semi-structured trace payloads sit in indexed MongoDB clusters, while tenant identities and ACLs live in ACID Postgres.
+                  Dual-persistence architecture: individual hit event logs are stored in MongoDB, while analytical rollups are aggregated in relational PostgreSQL.
                 </p>
                 <div className="mt-auto pt-3">
                   <span className="text-[11px] font-mono font-semibold bg-surface-container-low px-3 py-1.5 rounded block text-ink-secondary border border-hairline/40">
@@ -638,11 +638,11 @@ response = requests.post(
                   Analytics Aggregation
                 </h3>
                 <p className="text-xs text-ink-secondary leading-relaxed">
-                  Continuous rollups generate instant p50, p95, and p99 ledgers, error budget depletion forecasts, and alerting triggers without full-table table scans.
+                  Continuous upserts track total hits, error counts, and weighted mean latencies partitioned per tenant, service, and endpoint.
                 </p>
                 <div className="mt-auto pt-3">
                   <span className="text-[11px] font-mono font-semibold bg-surface-container-low px-3 py-1.5 rounded block text-ink-secondary border border-hairline/40">
-                    Live WebSocket Push
+                    Tenant Metrics Dashboard
                   </span>
                 </div>
               </div>
@@ -662,7 +662,7 @@ response = requests.post(
                   Engineered for Academic Rigor &amp; Defense-in-Depth
                 </h2>
                 <p className="text-base text-ink-secondary">
-                  Telemetry should neither leak payload secrets nor slow production services. Pulse provides strict tenancy isolation by mathematical design.
+                  Telemetry should neither leak tenant secrets nor slow production services. Pulse provides strict multi-tenant isolation across all storage and query boundaries.
                 </p>
               </div>
 
@@ -683,14 +683,14 @@ response = requests.post(
                   <Lock className="w-6 h-6" />
                 </div>
                 <h3 className="font-serif text-xl font-semibold text-ink-primary">
-                  Immutable Cryptographic API Keys
+                  Scoped Tenant API Keys
                 </h3>
                 <p className="text-sm text-ink-secondary leading-relaxed">
-                  Keys are minted using 64-character pseudo-random entropy and secured via salted sha-512 one-way derivation. Pulse stores only the irreversible digest; compromise of backend storage yields zero plaintext secrets to unauthorized adversaries.
+                  Keys are minted with cryptographically secure random entropy, scoped to specific tenant organizations, and validated on every telemetry ingestion request.
                 </p>
                 <div className="mt-4 pt-4 border-t border-hairline/40 flex items-center justify-between text-xs text-ink-secondary font-medium">
-                  <span>Hashing: Salted SHA-512</span>
-                  <span className="text-[#154620] font-semibold">Zero Unhashed Persistence</span>
+                  <span>Header: x-api-key</span>
+                  <span className="text-[#154620] font-semibold">Tenant Scoped Validation</span>
                 </div>
               </div>
 
@@ -703,11 +703,11 @@ response = requests.post(
                   Real-Time Ingestion Analytics
                 </h3>
                 <p className="text-sm text-ink-secondary leading-relaxed">
-                  Gain immediate visibility into endpoint density, active error-budget consumption, and micro-latency regressions. Anomaly detection identifies outlier payloads and upstream timeout spikes prior to widespread degradation.
+                  Gain immediate visibility into endpoint traffic, error rates, and arithmetic mean latency across services and endpoints with tenant-isolated filtering.
                 </p>
                 <div className="mt-4 pt-4 border-t border-hairline/40 flex items-center justify-between text-xs text-ink-secondary font-medium">
-                  <span>Granularity: 100ms Buckets</span>
-                  <span className="text-[#154620] font-semibold">Dynamic Outlier Isolation</span>
+                  <span>Granularity: Time-Bucket Rollups</span>
+                  <span className="text-[#154620] font-semibold">Partitioned Isolation</span>
                 </div>
               </div>
 
@@ -737,7 +737,7 @@ response = requests.post(
                   Defense-in-Depth Tenant Security
                 </h3>
                 <p className="text-sm text-ink-secondary leading-relaxed">
-                  Session tokens are sealed within HTTP-only, SameSite cookies with active database status verification. Ingested API calls authenticate via salted SHA-512 hashed keys, ensuring no plaintext keys persist in storage.
+                  Session tokens are sealed within HTTP-only, SameSite cookies with active database status verification. Ingested API calls authenticate via scoped tenant API keys.
                 </p>
                 <div className="mt-4 pt-4 border-t border-hairline/40 flex items-center justify-between text-xs text-ink-secondary font-medium">
                   <span>Session: HTTP-Only Secure</span>
@@ -892,7 +892,7 @@ response = requests.post(
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#154620]" />
-                  Salted SHA-512 API keys
+                  Scoped tenant API keys
                 </span>
               </div>
             </div>
@@ -931,7 +931,7 @@ response = requests.post(
                 </span>
               </div>
               <p className="text-xs text-ink-secondary max-w-sm leading-relaxed">
-                Scholarly telemetry, distributed tracing, and payload analytics designed for systems reliability engineers and architects.
+                High-throughput telemetry ingestion and multi-tenant API performance monitoring for modern distributed applications.
               </p>
             </div>
 
@@ -941,16 +941,16 @@ response = requests.post(
               </span>
               <nav className="flex flex-col gap-2 text-xs text-ink-secondary">
                 <a href="#features" className="hover:text-burgundy transition-colors">
-                  Tracing Engine
+                  Ingestion Engine
                 </a>
                 <a href="#features" className="hover:text-burgundy transition-colors">
                   Metrics &amp; Logs
                 </a>
                 <a href="#features" className="hover:text-burgundy transition-colors">
-                  Payload Analysis
+                  Endpoint Analytics
                 </a>
                 <a href="#features" className="hover:text-burgundy transition-colors">
-                  Alert Automation
+                  Tenant Governance
                 </a>
               </nav>
             </div>
@@ -964,7 +964,7 @@ response = requests.post(
                   Quickstart API
                 </a>
                 <a href="#pipeline-architecture" className="hover:text-burgundy transition-colors">
-                  OpenTelemetry SDK
+                  HTTP Ingest Protocol
                 </a>
                 <a href="#documentation" className="hover:text-burgundy transition-colors">
                   Reference Manual
@@ -998,11 +998,8 @@ response = requests.post(
 
           <div className="mt-12 pt-6 border-t border-hairline/40 flex flex-col md:flex-row items-center justify-between text-xs text-ink-secondary gap-4">
             <p>© 2025 Pulse Observability, Inc. Architectural systems telemetry.</p>
-            <div className="flex items-center gap-4">
-              <span className="inline-flex items-center gap-1.5 text-[#154620] font-semibold">
-                <span className="w-2 h-2 rounded-full bg-[#154620]" />
-                All Systems Operational
-              </span>
+            <div className="flex items-center gap-4 text-ink-secondary">
+              <span>Multi-Tenant Ingestion Engine</span>
             </div>
           </div>
         </div>

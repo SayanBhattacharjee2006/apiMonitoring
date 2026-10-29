@@ -21,6 +21,8 @@ import postgres from "../../src/shared/config/postgres.js";
 
 describe("Phase 17: Full End-to-End System Lifecycle", () => {
     beforeAll(async () => {
+        await purgeTestQueues();
+        await cleanAllDatabases();
         await startTestConsumer();
     });
 
@@ -32,6 +34,10 @@ describe("Phase 17: Full End-to-End System Lifecycle", () => {
     afterEach(async () => {
         await cleanAllDatabases();
         await purgeTestQueues();
+    });
+
+    afterAll(async () => {
+        await stopTestConsumer();
     });
 
     it("executes the entire business lifecycle automatically from onboarding to analytics and isolation", async () => {

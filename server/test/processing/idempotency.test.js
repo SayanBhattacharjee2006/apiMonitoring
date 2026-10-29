@@ -30,6 +30,10 @@ describe("Phase 12: Idempotency Verification", () => {
         await purgeTestQueues();
     });
 
+    afterAll(async () => {
+        await stopTestConsumer();
+    });
+
     it("skips duplicate messages with the same messageId without duplicating DB records or metrics", async () => {
         const { channel } = await connectTestRabbitMQ();
         const testEventId = `idempotent-test-event-${randomSuffix()}`;

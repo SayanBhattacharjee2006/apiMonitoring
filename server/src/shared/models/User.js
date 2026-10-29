@@ -115,7 +115,14 @@ userSchema.pre('save', async function (next) {
 
 // Indexes for efficient querying
 userSchema.index({ clientId: 1, isActive: 1 });
-userSchema.index({ role: 1 })
+// Database-level safeguard: Enforce at most one super-admin atomically via partial unique index
+userSchema.index(
+    { role: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { role: "super-admin" },
+    }
+);
 
 const User = mongoose.model("User", userSchema)
 export default User

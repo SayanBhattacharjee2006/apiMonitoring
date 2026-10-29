@@ -11,19 +11,19 @@ const apiKeySchema = new mongoose.Schema(
             type: String,
             required: true,
             unique: true,
-            index: true,
+            // TTL index is explicitly declared below via apiKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
         },
         keyValue: {
             type: String,
             required: true,
             unique: true,
-            index: true,
+            // TTL index is explicitly declared below via apiKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
         },
         clientId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Client",
             required: true,
-            index: true,
+            // TTL index is explicitly declared below via apiKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
         },
         name: {
             type: String,
@@ -103,7 +103,7 @@ const apiKeySchema = new mongoose.Schema(
                 const days = Number.parseInt(process.env.API_KEY_EXPIRY_DAYS || "365");
                 return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
             },
-            index: true,
+            // TTL index is explicitly declared below via apiKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
         },
         metadata: {
             createdBy: {

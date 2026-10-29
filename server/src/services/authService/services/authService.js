@@ -5,6 +5,7 @@ import config from "../../../shared/config/index.js";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import Client from "../../../shared/models/Client.js";
+import User from "../../../shared/models/User.js";
 import { APPLICATION_ROLES } from "../../../shared/constants/roles.js";
 
 /**
@@ -93,17 +94,29 @@ export class AuthService {
                 throw new AppError("Super admin already exists", 400);
             }
 
-            // 2. If regular users/tenants already exist, require a valid bootstrap secret
+            // 2. Validate bootstrap secret:
+            // - In production: bootstrap secret is unconditionally mandatory even for initial cluster setup.
+            // - In non-production: required if users already exist in the cluster.
             const totalUsersCount = await this.userRepository.model.countDocuments();
             const configuredSecret = config.bootstrapSecret || process.env.SUPER_ADMIN_BOOTSTRAP_SECRET;
             const providedSecret = superAdminData.bootstrapSecret;
+            const isProduction = config.node_env === "production";
 
-            if (totalUsersCount > 0) {
-                if (!configuredSecret || providedSecret !== configuredSecret) {
+            if (isProduction) {
+                if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
                     throw new AppError(
-                        "Unauthorized bootstrap attempt: valid bootstrap secret required when cluster has existing users",
+                        "Unauthorized bootstrap attempt: valid bootstrap secret required in production",
                         403
                     );
+                }
+            } else {
+                if (totalUsersCount > 0) {
+                    if (!configuredSecret || providedSecret !== configuredSecret) {
+                        throw new AppError(
+                            "Unauthorized bootstrap attempt: valid bootstrap secret required when cluster has existing users",
+                            403
+                        );
+                    }
                 }
             }
 
@@ -119,6 +132,10 @@ export class AuthService {
                 token,
             };
         } catch (error) {
+            // Atomic DB safeguard: catch MongoDB duplicate key error code 11000 on super-admin partial index
+            if (error.code === 11000 && (error.keyPattern?.role || (error.message && error.message.includes("role_1")))) {
+                throw new AppError("Super admin already exists", 400);
+            }
             logger.error("Error onboarding super admin:", error);
             throw error;
         }
@@ -131,6 +148,7 @@ export class AuthService {
      */
     async registerTenant(tenantData) {
         let createdClient = null;
+        let createdUser = null;
         try {
             const {
                 name,
@@ -214,17 +232,17 @@ export class AuthService {
                 isActive: true,
             };
 
-            const user = await this.userRepository.create(userData);
-            const token = this.generateToken(user);
+            createdUser = await this.userRepository.create(userData);
+            const token = this.generateToken(createdUser);
 
             logger.info("Independent tenant and initial admin registered successfully", {
                 clientId: createdClient._id,
-                userId: user._id,
-                username: user.username,
+                userId: createdUser._id,
+                username: createdUser.username,
             });
 
             return {
-                user: this.formatUserForResponse(user),
+                user: this.formatUserForResponse(createdUser),
                 client: {
                     id: createdClient._id,
                     name: createdClient.name,
@@ -234,12 +252,19 @@ export class AuthService {
                 token,
             };
         } catch (error) {
-            // Compensating rollback: delete created client if user creation failed
+            // Compensating rollback: delete both created user and created client if any subsequent step fails
+            if (createdUser && createdUser._id) {
+                try {
+                    await User.findByIdAndDelete(createdUser._id);
+                } catch (cleanupUserErr) {
+                    logger.error("Failed to cleanup user during rollback:", cleanupUserErr);
+                }
+            }
             if (createdClient && createdClient._id) {
                 try {
                     await Client.findByIdAndDelete(createdClient._id);
-                } catch (cleanupErr) {
-                    logger.error("Failed to cleanup client during rollback:", cleanupErr);
+                } catch (cleanupClientErr) {
+                    logger.error("Failed to cleanup client during rollback:", cleanupClientErr);
                 }
             }
             logger.error("Error registering tenant:", error);

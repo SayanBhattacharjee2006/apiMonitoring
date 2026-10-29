@@ -34,6 +34,10 @@ describe("Phase 10 & 11: Asynchronous Event Processing (RabbitMQ â†’ Consumer â†
         await purgeTestQueues();
     });
 
+    afterAll(async () => {
+        await stopTestConsumer();
+    });
+
     it("persists accepted API hit to MongoDB raw event storage asynchronously", async () => {
         const payload = generateApiHitPayload();
 
