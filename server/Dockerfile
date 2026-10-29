@@ -10,6 +10,8 @@ COPY . .
 
 RUN mkdir -p logs
 
+ENV SERVICE_ROLE=api
+
 EXPOSE 5000
 
 CMD ["node", "src/server.js"]

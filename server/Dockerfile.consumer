@@ -15,5 +15,7 @@ COPY . .
 # Create logs directory
 RUN mkdir -p logs
 
+ENV SERVICE_ROLE=consumer
+
 # Start the consumer (correct path)
 CMD ["node", "src/services/processorService/consumer.js"]

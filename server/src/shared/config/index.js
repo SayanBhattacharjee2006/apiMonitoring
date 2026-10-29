@@ -3,28 +3,96 @@ dotenv.config();
 
 const node_env = process.env.NODE_ENV || "development";
 const isProduction = node_env === "production";
+const serviceRole = process.env.SERVICE_ROLE || "api";
+const isConsumer = serviceRole === "consumer";
 
-// Production secret validation: fail safely and loudly if secrets are missing
-if (isProduction) {
-    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === "your_jwt_secret") {
+// Explicit set of disallowed placeholder, dev, and test secrets in production
+export const DISALLOWED_PRODUCTION_SECRETS = new Set([
+    "your_jwt_secret",
+    "adm_bootstrap_secret_default",
+    "adm_bootstrap_secret_secure_dev",
+    "dev_test_only_jwt_secret_never_use_in_production_32chars",
+    "dev_test_only_bootstrap_secret_never_use_in_prod",
+    "test_jwt_secret_key_1234567890_test_suite_key",
+    "test-bootstrap-secret-key-1234",
+    "default_jwt_secret",
+    "default_bootstrap_secret",
+    "secret",
+    "jwt_secret",
+    "bootstrap_secret",
+    "changeme",
+    "password",
+    "admin",
+]);
+
+/**
+ * Validates whether a secret value is unsafe or unacceptable for production use.
+ * Rejects missing values, values below minLength, known test/dev strings, and dev/test markers.
+ *
+ * @param {string} val - The secret value to validate.
+ * @param {number} minLength - Minimum required character length.
+ * @returns {boolean} - True if invalid/rejected, false if secure and valid.
+ */
+export function isInvalidProductionSecret(val, minLength = 32) {
+    if (!val || typeof val !== "string") return true;
+    const trimmed = val.trim();
+    if (trimmed.length < minLength) return true;
+    const lower = trimmed.toLowerCase();
+    if (DISALLOWED_PRODUCTION_SECRETS.has(lower)) return true;
+    // Reject any development or test markers in production secrets
+    if (
+        lower.includes("test") ||
+        lower.includes("dev") ||
+        lower.includes("placeholder") ||
+        lower.includes("default") ||
+        lower.includes("changeme")
+    ) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Validates secrets based on environment and process role.
+ */
+export function validateProductionConfig({
+    nodeEnv = node_env,
+    role = serviceRole,
+    jwtSecret = process.env.JWT_SECRET,
+    bootstrapSecret = process.env.SUPER_ADMIN_BOOTSTRAP_SECRET,
+} = {}) {
+    if (nodeEnv !== "production") return;
+
+    // Consumers do not serve authentication endpoints or issue/verify JWTs
+    if (role === "consumer") return;
+
+    // API process strictly requires valid, strong production secrets
+    if (isInvalidProductionSecret(jwtSecret, 32)) {
         throw new Error(
-            "[FATAL CONFIG ERROR] JWT_SECRET must be explicitly configured in production. Insecure fallbacks are prohibited."
+            "[FATAL CONFIG ERROR] JWT_SECRET must be explicitly configured with at least 32 characters in production. Insecure defaults, test tokens, and development secrets are prohibited."
         );
     }
-    if (!process.env.SUPER_ADMIN_BOOTSTRAP_SECRET || process.env.SUPER_ADMIN_BOOTSTRAP_SECRET === "adm_bootstrap_secret_default") {
+    if (isInvalidProductionSecret(bootstrapSecret, 16)) {
         throw new Error(
-            "[FATAL CONFIG ERROR] SUPER_ADMIN_BOOTSTRAP_SECRET must be explicitly configured in production. Insecure fallbacks are prohibited."
+            "[FATAL CONFIG ERROR] SUPER_ADMIN_BOOTSTRAP_SECRET must be explicitly configured with at least 16 characters in production. Insecure defaults, test tokens, and development secrets are prohibited."
         );
     }
 }
 
+// Execute production configuration validation at boot time
+validateProductionConfig();
+
 const config = {
     // server
     node_env,
+    serviceRole,
     port: Number.parseInt(process.env.PORT || "5000", 10),
 
-    // Super Admin bootstrap security
-    bootstrapSecret: process.env.SUPER_ADMIN_BOOTSTRAP_SECRET || (isProduction ? null : "dev_test_only_bootstrap_secret_never_use_in_prod"),
+    // Super Admin bootstrap security (only for API process)
+    bootstrapSecret: isConsumer
+        ? null
+        : (process.env.SUPER_ADMIN_BOOTSTRAP_SECRET ||
+           (isProduction ? null : "dev_test_only_bootstrap_secret_never_use_in_prod")),
 
     // MongoDB
     mongo: {
@@ -53,7 +121,10 @@ const config = {
     },
 
     jwt: {
-        secret: process.env.JWT_SECRET || (isProduction ? null : "dev_test_only_jwt_secret_never_use_in_production_32chars"),
+        secret: isConsumer
+            ? null
+            : (process.env.JWT_SECRET ||
+               (isProduction ? null : "dev_test_only_jwt_secret_never_use_in_production_32chars")),
         expiresIn: process.env.JWT_EXPIRES_IN || "24h",
     },
 
