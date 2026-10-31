@@ -31,6 +31,23 @@ class PostgresConnection{
         return this.pool;
     }
 
+    async ensureSchema(){
+        try {
+            await this.query(`
+                CREATE TABLE IF NOT EXISTS processed_events (
+                    event_id VARCHAR(255) PRIMARY KEY,
+                    client_id VARCHAR(24) NOT NULL,
+                    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_processed_events_client_id ON processed_events (client_id);
+                CREATE INDEX IF NOT EXISTS idx_processed_events_processed_at ON processed_events (processed_at);
+            `);
+        } catch(error){
+            logger.error("Failed to ensure PostgreSQL schema:", error);
+            throw error;
+        }
+    }
+
     async testConnection(){
         try{
             const pool = this.getPool();
@@ -38,7 +55,8 @@ class PostgresConnection{
             const result = await client.query("SELECT NOW()");
             client.release();
 
-            logger.info("Postgres connected successfully at ", result.rows[0].now);
+            logger.info("Postgres connected successfully at  ", result.rows[0].now);
+            await this.ensureSchema();
         } catch(error){
             logger.error("Failed to connect to Postgres:", error);
             throw error;

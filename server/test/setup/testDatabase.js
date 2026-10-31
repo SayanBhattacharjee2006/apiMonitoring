@@ -57,10 +57,19 @@ export async function cleanMongo() {
  */
 export async function cleanPostgres() {
     try {
-        await postgres.query("TRUNCATE TABLE endpoint_metrics RESTART IDENTITY CASCADE");
+        await postgres.query("TRUNCATE TABLE endpoint_metrics, processed_events RESTART IDENTITY CASCADE");
     } catch (err) {
         // Table might be empty or query might vary
-        await postgres.query("DELETE FROM endpoint_metrics");
+        try {
+            await postgres.query("DELETE FROM endpoint_metrics");
+        } catch (e) {
+            // ignore
+        }
+        try {
+            await postgres.query("DELETE FROM processed_events");
+        } catch (e) {
+            // ignore
+        }
     }
 }
 

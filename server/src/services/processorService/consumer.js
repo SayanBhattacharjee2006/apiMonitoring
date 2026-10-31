@@ -202,21 +202,25 @@ class EventConsumer {
         try {
             messageData = this._parseMessage(msg);
 
-            // Idempotency
+            // Fast-path in-memory idempotency check (optimization only)
             if (this.processedIds.has(messageData.messageId)) {
-                this._logger.debug("Duplicate message skipped", {
+                this._logger.debug("Duplicate message skipped by in-memory cache", {
                     messageId: messageData.messageId,
                 });
                 this._channel.ack(msg);
                 return;
             }
 
+            // Process message (Mongo save + Postgres atomic transaction)
             await this._processeMessage(messageData);
+
+            // Acknowledge ONLY after Mongo save and PostgreSQL aggregation succeed (or was already committed)
             this._channel.ack(msg);
             this._circuitBreaker.onSuccess();
             this._stats.processed++;
             this._stats.lastProcessedAt = new Date();
 
+            // Add to in-memory set ONLY on successful commit
             this.processedIds.add(messageData.messageId);
 
             if (this.processedIds.size > 10000) {
@@ -233,22 +237,43 @@ class EventConsumer {
     _parseMessage(msg) {
         try {
             const content = msg.content.toString();
-            const messageData = JSON.parse(content);
-            const parsedMessage = messageSchema.safeParse(messageData);
+            const rawParsed = JSON.parse(content);
+            const parsedMessage = messageSchema.safeParse(rawParsed);
             if (!parsedMessage.success) {
                 throw new Error(
                     `Schema Validation failed: ${parsedMessage.error.issues.map((i) => i.message).join(",")}`,
                 );
             }
 
+            // Canonical durable idempotency key: must be valid non-empty string and not "unknown"
+            const canonicalEventId =
+                msg.properties?.messageId ||
+                parsedMessage.data.messageId ||
+                parsedMessage.data.data?.eventId;
+
+            if (
+                !canonicalEventId ||
+                typeof canonicalEventId !== "string" ||
+                canonicalEventId.trim() === "" ||
+                canonicalEventId === "unknown"
+            ) {
+                throw new Error(
+                    "Message validation failed: canonical eventId / messageId is missing, empty, or 'unknown'",
+                );
+            }
+
+            // Ensure eventId in inner payload matches canonicalEventId
+            const payloadData = { ...parsedMessage.data.data };
+            if (!payloadData.eventId) {
+                payloadData.eventId = canonicalEventId;
+            }
+
             return {
                 ...parsedMessage.data,
-                messageId:
-                    msg.properties.messageId ||
-                    messageData.messageId ||
-                    "unknown",
+                data: payloadData,
+                messageId: canonicalEventId,
                 retryCount: Number.parseInt(
-                    msg.properties.headers?.["x-retry-count"] || 0,
+                    msg.properties?.headers?.["x-retry-count"] || 0,
                 ),
             };
         } catch (error) {
@@ -269,7 +294,7 @@ class EventConsumer {
 
     async _handleMessageError(error, msg, messageData, startTime) {
         const messageId =
-            messageData.messageId || msg.properties.messageId || "unknown";
+            messageData?.messageId || msg.properties?.messageId || "unknown";
         const retryCount = messageData?.retryCount || 0;
 
         this._circuitBreaker.onfailure();
@@ -305,27 +330,50 @@ class EventConsumer {
 
     async _sendToDlq(msg, error, reason) {
         const dlqName = `${this._config.rabbitMQ.queue}.dlq`;
-        this._channel.sendToQueue(dlqName, msg.content, {
-            ...msg.properties,
-            persistent: true,
-            headers: {
-                ...msg.properties.headers,
-                "x-dlq-reason": reason,
-                "x-dlq-error": error.message,
-                "x-dlq-timestamp": new Date().toISOString(),
-                "x-original-queue": `${this._config.rabbitMQ.queue}`,
-            },
-        });
+        try {
+            await this._channel.assertQueue(dlqName, { durable: true });
+            const sent = this._channel.sendToQueue(dlqName, msg.content, {
+                ...msg.properties,
+                persistent: true,
+                headers: {
+                    ...msg.properties?.headers,
+                    "x-dlq-reason": reason,
+                    "x-dlq-error": error?.message || "Unknown error",
+                    "x-dlq-timestamp": new Date().toISOString(),
+                    "x-original-queue": `${this._config.rabbitMQ.queue}`,
+                },
+            });
 
-        this._channel.ack(msg);
-        this._stats.dlqrouted++;
+            if (sent) {
+                this._channel.ack(msg);
+                this._stats.dlqrouted++;
+                this._logger.warn(`Message routed to DLQ [${reason}]:`, {
+                    messageId: msg.properties?.messageId,
+                    error: error?.message,
+                });
+            } else {
+                this._logger.error(
+                    "Failed to send message to DLQ (sendToQueue returned false), preserving message on queue",
+                    {
+                        messageId: msg.properties?.messageId,
+                    },
+                );
+                this._channel.nack(msg, false, true);
+            }
+        } catch (dlqErr) {
+            this._logger.error(`Error sending message to DLQ: ${dlqErr.message}`, {
+                error: dlqErr,
+                originalError: error?.message,
+            });
+            this._channel.nack(msg, false, true);
+        }
     }
 
     async _retryMessage(msg, retryCount) {
         const delay = this._retryStrategy.delay(retryCount);
 
         const retryHeaders = {
-            ...msg.properties.headers,
+            ...msg.properties?.headers,
             "x-retry-count": retryCount + 1,
             "x-timestamp": new Date().toISOString(),
             "x-retry-delay": delay,
@@ -334,7 +382,7 @@ class EventConsumer {
 
         setTimeout(async () => {
             try {
-                this._channel.sendToQueue(
+                const sent = this._channel.sendToQueue(
                     this._config.rabbitMQ.queue,
                     msg.content,
                     {
@@ -343,20 +391,24 @@ class EventConsumer {
                     },
                 );
 
-                this._channel.ack(msg);
-                this._stats.retried++;
+                if (sent) {
+                    this._channel.ack(msg);
+                    this._stats.retried++;
 
-                this._logger.info("Message scheduled for retry", {
-                    messageId: msg.properties.messageId,
-                    retryCount: retryCount + 1,
-                    delay,
-                });
+                    this._logger.info("Message scheduled for retry", {
+                        messageId: msg.properties?.messageId,
+                        retryCount: retryCount + 1,
+                        delay,
+                    });
+                } else {
+                    this._logger.error("Failed to republish message for retry, routing to DLQ");
+                    await this._sendToDlq(msg, new Error("Buffer full during retry publish"), "RETRY_FAILED");
+                }
             } catch (error) {
                 this._logger.error("Failed to schedule retry:", error);
                 await this._sendToDlq(msg, error, "RETRY_FAILED");
             }
         }, delay);
-
     }
 
     async stop() {
@@ -369,7 +421,7 @@ class EventConsumer {
                 this._mongo.disconnect(),
             ]);
         } catch (error) {
-            throw new Error("Error stopping consumer: ", error);
+            throw new Error("Error stopping consumer: " + error?.message);
         }
     }
 }
@@ -427,7 +479,6 @@ async function startConsumerWithRetry() {
         }
     }
 }
-
 
 process.on('SIGINT', async () => {
     logger.info('Received SIGINT, shutting down gracefully...');

@@ -22,6 +22,19 @@ CREATE INDEX IF NOT EXISTS idx_endpoint_metrics_metrics_service ON endpoint_metr
 CREATE INDEX IF NOT EXISTS idx_endpoint_metrics_time ON endpoint_metrics (time_bucket);
 CREATE INDEX IF NOT EXISTS idx_endpoint_metrics_endpoint ON endpoint_metrics (client_id, service_name, endpoint);
 
+-- Table: processed_events (Durable Event-Level Deduplication Ledger)
+-- Tracks successfully processed/aggregated event IDs to prevent duplicate metrics aggregation.
+-- Retention note: Records in this ledger must be retained for at least the message TTL / DLQ replay
+-- window (e.g. 7-30 days) to prevent duplicate processing on queue replay.
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id VARCHAR(255) PRIMARY KEY,
+    client_id VARCHAR(24) NOT NULL,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_processed_events_client_id ON processed_events (client_id);
+CREATE INDEX IF NOT EXISTS idx_processed_events_processed_at ON processed_events (processed_at);
+
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

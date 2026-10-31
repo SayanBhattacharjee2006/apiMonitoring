@@ -14,7 +14,12 @@ import { checkRabbitMQHealth } from "./testRabbitMQ.js";
 beforeAll(async () => {
     // Pure unit and configuration security tests do not require live database or queue infrastructure
     const testPath = expect.getState()?.testPath || "";
-    if (testPath.includes("configSecurity")) {
+    if (
+        testPath.includes("configSecurity") ||
+        testPath.includes("retryStrategy") ||
+        testPath.includes("circuitBreaker") ||
+        testPath.includes(".unit.")
+    ) {
         return;
     }
 

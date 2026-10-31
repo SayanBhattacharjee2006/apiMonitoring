@@ -280,3 +280,90 @@ The Docker Compose configuration was verified using `docker compose --env-file .
    - Redacted all raw API keys to `[REDACTED]`.
    - Accurately documented the plaintext API key limitation and specified the 6 mandatory requirements for production readiness.
    - Documented key invalidation protocols and Docker Compose validation results.
+
+9. [`server/src/services/processorService/service/ProcessorService.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/service/ProcessorService.js):
+   - Validates `eventData.eventId` (rejects missing, empty, or "unknown" identifiers).
+   - Validates required fields (`clientId`, `serviceName`, `endpoint`, `method`).
+   - Ensures MongoDB duplicates do not abort subsequent PostgreSQL aggregation on retries.
+   - Propagates all PostgreSQL transaction and connectivity errors to caller (never swallowed).
+   - Returns explicit `{ status: "PROCESSED" | "DUPLICATE", eventId }`.
+10. [`server/src/services/processorService/consumer.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/consumer.js):
+   - Enforces canonical event ID in `_parseMessage()` without falling back to "unknown".
+   - Acknowledges RabbitMQ messages only when MongoDB save and PostgreSQL transaction commit successfully (or was already committed).
+   - Limits in-memory `processedIds` Set strictly to a fast-path cache; never adds uncommitted/failed events to it.
+   - Hardens `_sendToDlq()` to assert queue, verify publish status, and nack if routing fails (prevents silent loss).
+   - Hardens `_retryMessage()` to route to DLQ if republish buffer is exhausted.
+11. [`server/src/services/processorService/repository/MetricsRepository.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/repository/MetricsRepository.js):
+   - Implemented `recordEventAndAggregateMetrics({ eventId, clientId, metricsData })` using a single checked-out PostgreSQL connection and atomic `BEGIN...COMMIT/ROLLBACK`.
+   - Durable idempotency via `processed_events ... ON CONFLICT (event_id) DO NOTHING RETURNING event_id`.
+   - Distinguishes legitimate duplicates from cross-tenant collisions (`EVENT_INTEGRITY_MISMATCH`).
+   - Extended `upsertEndpointMetrics` and `_query` to participate in checked-out transactional client queries.
+12. [`server/src/services/processorService/repository/ApiHitRepository.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/repository/ApiHitRepository.js):
+   - Updated `save()` to explicitly return `{ doc, isDuplicate }`.
+   - Validates tenant integrity on MongoDB duplicate event collision, throwing `EVENT_INTEGRITY_MISMATCH` if client IDs differ.
+13. [`server/src/shared/events/producer/RetryStrategy.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/shared/events/producer/RetryStrategy.js):
+   - Added PostgreSQL transient error codes (`08000`, `08003`, `08006`, `40001`, `40P01`, `57P01-03`) and patterns (`timeout`, `deadlock`, `serialization failure`, `connection terminated/refused/reset`).
+   - Explicitly rejects non-retryable errors (`validation`, `duplicate key`, `EVENT_INTEGRITY_MISMATCH`, `invalid api key`).
+14. [`server/scripts/init-postgres.sql`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/scripts/init-postgres.sql) & [`server/scripts/migrate-processed-events.sql`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/scripts/migrate-processed-events.sql):
+   - Idempotently creates `processed_events` table and tenant/timestamp indexes.
+15. [`server/src/shared/config/postgres.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/shared/config/postgres.js):
+   - Added runtime idempotent schema migration (`ensureSchema()`) executed automatically upon pool connection.
+
+---
+
+## Section H: Reliable PostgreSQL Aggregation & Durable Idempotency Architecture
+
+### H.1 Problem Statement & Previous Deficiencies
+Prior to this implementation:
+1. **PostgreSQL Aggregation Failures Swallowed**: In `ProcessorService.processEvent()`, any error thrown during PostgreSQL metric UPSERT was caught, logged as "non-critical", and suppressed if MongoDB raw event insertion had succeeded. Because no error was rethrown, `consumer.js` acknowledged the RabbitMQ message, permanently dropping the analytical aggregates for that event without retry or DLQ routing.
+2. **Idempotency Not Durable Across Consumer Lifecycles**: Idempotency relied on an in-memory `Set` (`processedIds`) in `consumer.js` and MongoDB's unique `eventId` index. Upon consumer restart, process crash, or in-memory LRU eviction, the Set was lost. The PostgreSQL UPSERT query unconditionally incremented `total_hits` and `error_hits` upon every retry or duplicate delivery.
+
+### H.2 Durable PostgreSQL Ledger Schema
+The table `processed_events` tracks processed event IDs persistently in PostgreSQL:
+```sql
+CREATE TABLE IF NOT EXISTS processed_events (
+    event_id VARCHAR(255) PRIMARY KEY,
+    client_id VARCHAR(24) NOT NULL,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_processed_events_client_id ON processed_events(client_id);
+CREATE INDEX IF NOT EXISTS idx_processed_events_processed_at ON processed_events(processed_at);
+```
+- **Retention Considerations**: Records in `processed_events` must be retained for at least the maximum message TTL / replay window of RabbitMQ (e.g. 30 days) to prevent replay duplicates. MongoDB retains raw hit documents, while PostgreSQL stores only lightweight deduplication metadata (`event_id`, `client_id`, `processed_at`).
+- **Migration**: Applied via `server/scripts/migrate-processed-events.sql`, included in `init-postgres.sql`, and automatically ensured at application startup via `postgres.ensureSchema()`.
+
+### H.3 Single-Transaction Atomic Aggregation (`MetricsRepository.recordEventAndAggregateMetrics`)
+```text
+BEGIN (Checked-out Client from Pool)
+  │
+  ▼
+INSERT INTO processed_events (event_id, client_id, processed_at)
+VALUES ($1, $2, CURRENT_TIMESTAMP)
+ON CONFLICT (event_id) DO NOTHING
+RETURNING event_id;
+  │
+  ├─────────────────────────────────────────────────┐
+  │ Row returned (New Event)                        │ No row returned (Duplicate Event ID)
+  ▼                                                 ▼
+Invoke upsertEndpointMetrics(client)               SELECT client_id FROM processed_events
+  │                                                 │
+  ▼                                                 ├─ client_id mismatch:
+COMMIT                                              │    ROLLBACK & Throw EVENT_INTEGRITY_MISMATCH
+  │                                                 ├─ client_id matches:
+Return { isDuplicate: false, eventId }             │    COMMIT & Return { isDuplicate: true, eventId }
+```
+- If an error occurs at any point (e.g., PostgreSQL timeout, disk failure, serialization conflict), `ROLLBACK` is executed, undoing both the ledger entry and the metric increments.
+- The checked-out client is guaranteed released in a `finally` block.
+
+### H.4 Processing Flow & Consumer Reliability
+1. **Canonical Event Identification**: Uses `eventData.eventId` (mirrored to RabbitMQ `messageId`). Missing, empty, or "unknown" identifiers are rejected immediately.
+2. **MongoDB Raw Event Resilience**: If MongoDB returns a duplicate key error (code 11000) during a retry, `ApiHitRepository.save()` retrieves the existing record, verifies tenant consistency, and allows processing to proceed to PostgreSQL aggregation.
+3. **Consumer ACK Invariant**: The RabbitMQ message is acknowledged if and only if MongoDB persistence and PostgreSQL aggregation commit successfully, or if the event was already confirmed committed in the ledger.
+4. **Dead-Letter Handling (DLQ)**: When transient retries are exhausted or non-retryable errors occur (`EVENT_INTEGRITY_MISMATCH`, validation failures), the consumer asserts `${queue}.dlq`, publishes the payload with full audit headers (`x-dlq-reason`, `x-dlq-error`, `x-dlq-timestamp`), and acknowledges the original message only after DLQ publication succeeds.
+
+### H.5 Verification Summary
+- **Unit & Concurrency Test Suite**: `test/processing/idempotency.unit.test.js` (11 tests, 100% PASS).
+- **Reliability Test Suite**: `test/reliability/` (24 tests across `configSecurity`, `circuitBreaker`, `retryStrategy`, 100% PASS).
+- **Integration Test Suite**: `test/processing/idempotency.test.js` updated to verify PostgreSQL ledger persistence and consumer restart resilience.
+- **Frontend Build**: Vite production build succeeded cleanly with 0 contract regressions (`dist/` generated).

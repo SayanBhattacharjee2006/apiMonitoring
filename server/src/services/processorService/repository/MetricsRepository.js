@@ -9,7 +9,97 @@ export class MetricsRepository extends BaseRepository {
         this.postgres = pg;
     }
 
-    async upsertEndpointMetrics(metricsData) {
+    /**
+     * Atomically records eventId in processed_events and updates aggregate metrics in one transaction.
+     * Prevents duplicate metric aggregation across retries, restarts, and concurrent deliveries.
+     *
+     * @param {Object} params
+     * @param {string} params.eventId
+     * @param {string} params.clientId
+     * @param {Object} params.metricsData
+     * @returns {Promise<{ isDuplicate: boolean, eventId: string }>}
+     */
+    async recordEventAndAggregateMetrics({ eventId, clientId, metricsData }) {
+        if (!eventId || typeof eventId !== "string" || eventId.trim() === "" || eventId === "unknown") {
+            throw new Error("Invalid event ID: non-empty string eventId is required for metric aggregation");
+        }
+        if (!clientId) {
+            throw new Error("Invalid client ID: clientId is required for metric aggregation");
+        }
+
+        const pool = typeof this.postgres?.getPool === "function"
+            ? this.postgres.getPool()
+            : this.postgres;
+
+        if (!pool || typeof pool.connect !== "function") {
+            this.logger.error("Database error: PostgreSQL pool is not available");
+            throw new Error("PostgreSQL pool is not configured on MetricsRepository");
+        }
+
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            // 1. Attempt to insert event into durable processed_events ledger
+            const insertLedgerSql = `
+                INSERT INTO processed_events (event_id, client_id, processed_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP)
+                ON CONFLICT (event_id) DO NOTHING
+                RETURNING event_id;
+            `;
+            const ledgerResult = await this._query(insertLedgerSql, [eventId, clientId.toString()], client);
+
+            if (ledgerResult.rowCount === 0) {
+                // Event ID already exists in ledger. Validate tenant identity.
+                const checkSql = `SELECT client_id FROM processed_events WHERE event_id = $1`;
+                const checkResult = await this._query(checkSql, [eventId], client);
+
+                if (checkResult.rows.length > 0) {
+                    const recordedClientId = checkResult.rows[0].client_id;
+                    if (recordedClientId !== clientId.toString()) {
+                        this.logger.error("Event integrity error: cross-tenant event ID collision", {
+                            eventId,
+                            incomingClientId: clientId.toString(),
+                            recordedClientId,
+                        });
+                        const integrityErr = new Error(`Event integrity error: eventId '${eventId}' already exists for another client`);
+                        integrityErr.code = "EVENT_INTEGRITY_MISMATCH";
+                        throw integrityErr;
+                    }
+                }
+
+                // Legitimate duplicate: skip aggregation and commit
+                await client.query("COMMIT");
+                this.logger.info("Event already recorded in ledger, skipping duplicate metric aggregation", {
+                    eventId,
+                    clientId,
+                });
+                return { isDuplicate: true, eventId };
+            }
+
+            // 2. New event: invoke existing endpoint metrics UPSERT within the same transaction
+            await this.upsertEndpointMetrics(metricsData, client);
+
+            await client.query("COMMIT");
+            this.logger.info("Event recorded in ledger and metrics aggregated successfully", {
+                eventId,
+                clientId,
+            });
+            return { isDuplicate: false, eventId };
+        } catch (error) {
+            try {
+                await client.query("ROLLBACK");
+            } catch (rollbackErr) {
+                this.logger.error("Error during transaction rollback:", rollbackErr);
+            }
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    async upsertEndpointMetrics(metricsData, client = null) {
         try {
             const {
                 clientId,
@@ -53,7 +143,7 @@ export class MetricsRepository extends BaseRepository {
                 minLatency,
                 maxLatency,
                 timeBucket,
-            ]);
+            ], client);
         } catch (err) {
             this.logger.error("Error upserting endpoint metrics:", err);
             throw err;
@@ -224,7 +314,7 @@ export class MetricsRepository extends BaseRepository {
         }
     }
 
-    _query(sql, params = [], client = this.postgres) {
+    _query(sql, params = [], client = null) {
         const target = client || this.postgres;
 
         if(!target || typeof target.query !== "function") {

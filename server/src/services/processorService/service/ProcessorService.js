@@ -30,84 +30,111 @@ export class ProcessorService {
         return date;
     }
 
+    /**
+     * Processes an API hit event:
+     * 1. Validates the event ID and required payload fields.
+     * 2. Persists the raw event to MongoDB (or detects duplicate).
+     * 3. Aggregates metrics in PostgreSQL inside an atomic idempotency transaction.
+     * 4. Rethrows all persistence/aggregation errors to consumer for retry/DLQ handling.
+     *
+     * @param {Object} eventData
+     * @returns {Promise<{ status: "PROCESSED" | "DUPLICATE", eventId: string }>}
+     */
     async processEvent(eventData) {
-        let rawEventSaved = false;
-        try {
-            logger.info("Processing event data:", {
-                eventId: eventData.eventId,
-                clientId: eventData.clientId,
-                serviceName: eventData.serviceName,
-                endpoint: eventData.endpoint,
-                method: eventData.method,
-            });
+        if (!eventData) {
+            throw new Error("Event data is required");
+        }
 
-            await this.apiHitRepository.save(eventData);
-            rawEventSaved = true;
-
-            logger.info("Raw event saved to MongoD:", {
-                eventId: eventData.eventId,
-            });
-
-            await this._updateMetricsWithFallback(eventData);
-
-            logger.info("Event processed successfully:", {
-                eventId: eventData.eventId,
-            });
-        } catch (error) {
-            // If saving the raw event fails, we log it as a critical error and rethrow the error.
-            if (!rawEventSaved) {
-                logger.error("Critical: Failed to save raw event to MongoDB:", {
-                    error: error.message,
-                    eventId: eventData.eventId,
-                });
-                throw error;
-            }
-            // If saving the raw event succeeds but updating metrics fails, we log it as a non-critical error and continue.
-            logger.error(
-                "Non-critical: Raw event saved but metrics update failed:",
-                {
-                    error: error.message,
-                    eventId: eventData.eventId,
-                },
+        if (
+            !eventData.eventId ||
+            typeof eventData.eventId !== "string" ||
+            eventData.eventId.trim() === "" ||
+            eventData.eventId === "unknown"
+        ) {
+            throw new Error(
+                `Invalid event ID: "${eventData.eventId}". Event ID must be a non-empty string and not "unknown".`
             );
         }
+
+        if (!eventData.clientId) {
+            throw new Error("Missing required field: clientId");
+        }
+
+        if (!eventData.serviceName || !eventData.endpoint || !eventData.method) {
+            throw new Error("Missing required fields: serviceName, endpoint, and method are required");
+        }
+
+        logger.info("Processing event data:", {
+            eventId: eventData.eventId,
+            clientId: eventData.clientId,
+            serviceName: eventData.serviceName,
+            endpoint: eventData.endpoint,
+            method: eventData.method,
+        });
+
+        // Step 1: Idempotently persist the raw event to MongoDB.
+        // Even if MongoDB reports a duplicate document, do NOT halt: continue to PostgreSQL
+        // aggregation because a previous attempt may have failed during the PostgreSQL transaction.
+        const mongoResult = await this.apiHitRepository.save(eventData);
+        if (mongoResult?.isDuplicate) {
+            logger.info("Raw event already exists in MongoDB, continuing to PostgreSQL aggregation", {
+                eventId: eventData.eventId,
+            });
+        } else {
+            logger.info("Raw event saved to MongoDB", {
+                eventId: eventData.eventId,
+            });
+        }
+
+        // Step 2: Record event in processed_events ledger and update aggregate metrics in PostgreSQL.
+        // Any failure in PostgreSQL is NOT swallowed and will be thrown back to the caller/consumer.
+        const pgResult = await this._updateMetricsWithFallback(eventData);
+
+        const status = pgResult?.isDuplicate ? "DUPLICATE" : "PROCESSED";
+        logger.info(`Event ${status.toLowerCase()} successfully`, {
+            eventId: eventData.eventId,
+            status,
+        });
+
+        return {
+            status,
+            eventId: eventData.eventId,
+        };
     }
 
     async _updateMetricsWithFallback(eventData) {
-        try {
-            const timeBucket = this.getTimeBucket(eventData.timestamp, "hour");
-             const metricsData = {
-                clientId: eventData.clientId.toString(),
-                serviceName: eventData.serviceName,
-                endpoint: eventData.endpoint,
-                method: eventData.method,
-                totalHits: 1,
-                errorHits: eventData.statusCode >= 400 ? 1 : 0,
-                avgLatency: eventData.latencyMs,
-                minLatency: eventData.latencyMs,
-                maxLatency: eventData.latencyMs,
-                timeBucket,
-            };
+        const timeBucket = this.getTimeBucket(eventData.timestamp, "hour");
+        const metricsData = {
+            clientId: eventData.clientId.toString(),
+            serviceName: eventData.serviceName,
+            endpoint: eventData.endpoint,
+            method: eventData.method,
+            totalHits: 1,
+            errorHits: Number(eventData.statusCode) >= 400 ? 1 : 0,
+            avgLatency: Number(eventData.latencyMs) || 0,
+            minLatency: Number(eventData.latencyMs) || 0,
+            maxLatency: Number(eventData.latencyMs) || 0,
+            timeBucket,
+        };
 
-            await this.metricsRepository.upsertEndpointMetrics(metricsData);
-              logger.info('Metrics updated successfully', {
-                eventId: eventData.eventId,
-            });
-        } catch(error){
-            throw error;
-        }
+        return await this.metricsRepository.recordEventAndAggregateMetrics({
+            eventId: eventData.eventId,
+            clientId: eventData.clientId.toString(),
+            metricsData,
+        });
     }
 
     async cleanupOldEvents(daysToKeep = 30) {
-        try{
+        try {
             let cutOffDate = new Date();
             cutOffDate.setDate(cutOffDate.getDate() - daysToKeep);
 
             const deletedCount = await this.apiHitRepository.deleteOldHits(cutOffDate);
             return deletedCount;
-        } catch(error){
-             logger.error('Error during cleanup:', error);
-            throw error; 
+        } catch (error) {
+            logger.error("Error during cleanup:", error);
+            throw error;
         }
     }
 }
+export default ProcessorService;
