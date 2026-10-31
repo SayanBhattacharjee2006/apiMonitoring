@@ -144,10 +144,8 @@ export class AnalyticsController {
         const now = new Date();
         let finalStart;
         let finalEnd;
-        let isDefault24h = false;
 
         if (start === null && end === null) {
-            isDefault24h = true;
             finalEnd = now;
             finalStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         } else if (start !== null && end === null) {
@@ -161,7 +159,14 @@ export class AnalyticsController {
             finalEnd = end;
         }
 
+        // Maximum analytics range is 30 days
+        const MAX_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+        if (finalEnd.getTime() - finalStart.getTime() > MAX_RANGE_MS) {
+            throw new AppError("Custom time range cannot exceed 30 days", 400);
+        }
+
         // Compute effective UTC hourly boundaries
+        // Standardized policy: include every complete hourly bucket overlapping the requested range
         const floorToUtcHour = (d) => {
             const copy = new Date(d);
             copy.setUTCMinutes(0, 0, 0);
@@ -176,24 +181,16 @@ export class AnalyticsController {
             );
         };
 
-        let effectiveStartTime;
+        const effectiveStartTime = floorToUtcHour(finalStart);
         let effectiveEndTime;
 
-        if (isDefault24h) {
-            effectiveEndTime = floorToUtcHour(finalEnd);
-            effectiveStartTime = new Date(
-                effectiveEndTime.getTime() - 23 * 60 * 60 * 1000
-            );
-        } else {
-            effectiveStartTime = floorToUtcHour(finalStart);
-            if (isExactUtcHour(finalEnd) && finalEnd.getTime() > finalStart.getTime()) {
-                effectiveEndTime = new Date(finalEnd.getTime() - 60 * 60 * 1000);
-                if (effectiveEndTime.getTime() < effectiveStartTime.getTime()) {
-                    effectiveEndTime = effectiveStartTime;
-                }
-            } else {
-                effectiveEndTime = floorToUtcHour(finalEnd);
+        if (isExactUtcHour(finalEnd) && finalEnd.getTime() > finalStart.getTime()) {
+            effectiveEndTime = new Date(finalEnd.getTime() - 60 * 60 * 1000);
+            if (effectiveEndTime.getTime() < effectiveStartTime.getTime()) {
+                effectiveEndTime = effectiveStartTime;
             }
+        } else {
+            effectiveEndTime = floorToUtcHour(finalEnd);
         }
 
         return {

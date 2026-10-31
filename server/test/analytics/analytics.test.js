@@ -11,6 +11,8 @@ import { startTestConsumer, stopTestConsumer } from "../helpers/consumerHelper.j
 import { waitForCondition } from "../helpers/polling.js";
 import { generateClientData, generateClientUserData, generateApiKeyData } from "../helpers/testData.js";
 import postgres from "../../src/shared/config/postgres.js";
+import { MetricsRepository } from "../../src/services/processorService/repository/MetricsRepository.js";
+import { AnalyticService } from "../../src/services/analyticService/services/analyticService.js";
 
 describe("Phase 13: Analytics & Cross-Tenant Data Isolation (GET /api/analytics/*)", () => {
     let superAdmin;
@@ -259,6 +261,111 @@ describe("Phase 13: Analytics & Cross-Tenant Data Isolation (GET /api/analytics/
             expect(stats.totalHits).toBe(2);
             expect(stats.errorHits).toBe(1);
             expect(stats.successHits).toBe(1);
+        });
+    });
+
+    describe("PostgreSQL Multi-Service Aggregation & Tenant Isolation (Database Integration)", () => {
+        const tenantAId = "6ae37ebb1193a7420d6eab9a";
+        const tenantBId = "6ae37ebb1193a7420d6eab9b";
+
+        beforeEach(async () => {
+            // Clean test records for both test tenants
+            await postgres.query(
+                "DELETE FROM endpoint_metrics WHERE client_id IN ($1, $2)",
+                [tenantAId, tenantBId]
+            );
+
+            // Seed actual rows directly into PostgreSQL endpoint_metrics table
+            const insertSql = `
+                INSERT INTO endpoint_metrics 
+                (client_id, service_name, endpoint, method, total_hits, error_hits, avg_latency, min_latency, max_latency, time_bucket)
+                VALUES 
+                -- Tenant A: Hourly bucket 10:00 (Contains 10:30 start timestamp) - 2 services sharing bucket
+                ($1, 'auth-service', '/api/v1/login', 'POST', 100, 5, 40.000, 10.000, 120.000, '2026-10-31 10:00:00'),
+                ($1, 'order-service', '/api/v1/orders', 'GET', 200, 15, 70.000, 20.000, 250.000, '2026-10-31 10:00:00'),
+                -- Tenant A: Hourly bucket 11:00 (Intermediate bucket)
+                ($1, 'order-service', '/api/v1/orders', 'POST', 300, 0, 50.000, 15.000, 180.000, '2026-10-31 11:00:00'),
+                -- Tenant A: Hourly bucket 12:00 (Contains 12:30 end timestamp)
+                ($1, 'auth-service', '/api/v1/logout', 'POST', 150, 10, 60.000, 15.000, 150.000, '2026-10-31 12:00:00'),
+                -- Tenant A: Hourly bucket 13:00 (OUTSIDE the requested 10:30–12:30 range)
+                ($1, 'auth-service', '/api/v1/logout', 'POST', 500, 50, 200.000, 50.000, 800.000, '2026-10-31 13:00:00'),
+                -- Tenant B: Overlapping hourly bucket 10:00 (Must NOT leak to Tenant A)
+                ($2, 'billing-service', '/api/v1/invoices', 'GET', 1000, 100, 99.000, 30.000, 400.000, '2026-10-31 10:00:00')
+            `;
+
+            await postgres.query(insertSql, [tenantAId, tenantBId]);
+        });
+
+        afterEach(async () => {
+            await postgres.query(
+                "DELETE FROM endpoint_metrics WHERE client_id IN ($1, $2)",
+                [tenantAId, tenantBId]
+            );
+        });
+
+        it("executes real SQL queries in PostgreSQL verifying multi-service aggregation, boundary inclusion, weighted latency, and isolation", async () => {
+            const repo = new MetricsRepository({ postgres, logger: { info: () => {}, error: () => {} } });
+            const analyticSvc = new AnalyticService({ metricRepo: repo });
+
+            // Query Tenant A for window 10:30–12:30 (effective boundaries 10:00–12:00)
+            const startTime = new Date("2026-10-31T10:30:00.000Z");
+            const endTime = new Date("2026-10-31T12:30:00.000Z");
+
+            const statsA = await analyticSvc.getOverallStats(tenantAId, { startTime, endTime });
+
+            // 1. Records sharing a bucket are aggregated together (Bucket 10:00 combines auth-service + order-service)
+            // 2. total_hits is summed correctly (100 + 200 + 300 + 150 = 750)
+            expect(statsA.totalHits).toBe(750);
+
+            // 3. error_hits is summed correctly (5 + 15 + 0 + 10 = 30)
+            expect(statsA.errorHits).toBe(30);
+            expect(statsA.successHits).toBe(720);
+            expect(statsA.errorRate).toBe(4.0); // (30 / 750) * 100 = 4.00%
+
+            // 4. Weighted average latency is mathematically correct:
+            // Sum(latency * hits) = (40*100) + (70*200) + (50*300) + (60*150) = 4000 + 14000 + 15000 + 9000 = 42000
+            // Weighted average = 42000 / 750 = 56.00 ms (unweighted arithmetic mean would be 55.00 ms)
+            expect(statsA.avgLatency).toBe(56.0);
+
+            // 5. Start boundary buckets are included (Bucket 10:00 included despite startTime = 10:30)
+            // 6. End boundary buckets follow exact-hour policy (Bucket 12:00 included for 12:30)
+            // 7. Records outside selected date range are excluded (Bucket 13:00 with 500 hits excluded)
+            expect(statsA.uniqueServices).toBe(2);
+            expect(statsA.uniqueEndpoints).toBe(3);
+
+            // 8. Tenant A cannot see Tenant B's records
+            // Tenant B has 1000 hits in bucket 10:00 which must NOT be in statsA
+            expect(statsA.totalHits).not.toBe(1750);
+
+            // 9. Tenant B cannot see Tenant A's records
+            const statsB = await analyticSvc.getOverallStats(tenantBId, { startTime, endTime });
+            expect(statsB.totalHits).toBe(1000);
+            expect(statsB.errorHits).toBe(100);
+            expect(statsB.avgLatency).toBe(99.0);
+            expect(statsB.uniqueServices).toBe(1);
+
+            // 10. Chronological time-series ordering is preserved
+            const timeSeriesA = await analyticSvc.getTimeSeries(tenantAId, { startTime, endTime });
+            expect(timeSeriesA.length).toBe(3); // Buckets 10:00, 11:00, 12:00
+            expect(timeSeriesA[0].totalHits).toBe(300); // Bucket 10:00 (100 + 200 hits aggregated)
+            expect(timeSeriesA[1].totalHits).toBe(300); // Bucket 11:00 (300 hits)
+            expect(timeSeriesA[2].totalHits).toBe(150); // Bucket 12:00 (150 hits)
+
+            const t0 = new Date(timeSeriesA[0].timeBucket).getTime();
+            const t1 = new Date(timeSeriesA[1].timeBucket).getTime();
+            const t2 = new Date(timeSeriesA[2].timeBucket).getTime();
+            expect(t0).toBeLessThan(t1);
+            expect(t1).toBeLessThan(t2);
+
+            // Test exact-hour end-boundary policy on real database
+            // Range 10:30–12:00 ends at exact hour 12:00, so bucket 12:00 is excluded
+            const statsExactHour = await analyticSvc.getOverallStats(tenantAId, {
+                startTime: new Date("2026-10-31T10:30:00.000Z"),
+                endTime: new Date("2026-10-31T12:00:00.000Z"),
+            });
+            // Includes only 10:00 (300) and 11:00 (300) = 600 hits
+            expect(statsExactHour.totalHits).toBe(600);
+            expect(statsExactHour.errorHits).toBe(20);
         });
     });
 });

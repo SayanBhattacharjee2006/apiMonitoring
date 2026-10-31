@@ -53,6 +53,8 @@ export const TimeFilterStrip = ({
     }
   };
 
+  const MAX_CUSTOM_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+
   const validateDates = (start, end) => {
     if (!start || !end) {
       setValidationError('Both start and end dates are required.');
@@ -66,6 +68,10 @@ export const TimeFilterStrip = ({
     }
     if (startDate.getTime() > endDate.getTime()) {
       setValidationError('Start time cannot be later than end time.');
+      return false;
+    }
+    if (endDate.getTime() - startDate.getTime() > MAX_CUSTOM_RANGE_MS) {
+      setValidationError('Custom time range cannot exceed 30 days.');
       return false;
     }
     setValidationError('');
@@ -141,7 +147,7 @@ export const TimeFilterStrip = ({
               Select Custom Window
             </h4>
             <p className="text-[11px] text-ink-secondary">
-              Metrics are aggregated in hourly buckets. Partial boundary hours are represented by complete hourly buckets (e.g. 10:30–12:30 includes 10:00, 11:00, and 12:00 buckets).
+              Metrics are aggregated in hourly buckets (maximum 30 days). Partial boundary hours are represented by complete hourly buckets (e.g. 10:30–12:30 includes 10:00, 11:00, and 12:00 buckets).
             </p>
 
             <div className="flex flex-col gap-3 text-xs">

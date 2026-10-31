@@ -101,7 +101,11 @@ export const DashboardPage = () => {
         if (dashRes.status === 'fulfilled' && dashRes.value?.data) {
           setDashboardData(dashRes.value.data);
         } else if (dashRes.status === 'rejected') {
-          setError(dashRes.reason?.message || 'Failed to fetch telemetry analytics');
+          setError(
+            dashRes.reason?.response?.data?.message ||
+              dashRes.reason?.message ||
+              'Failed to fetch telemetry analytics'
+          );
         }
 
         if (healthRes.status === 'fulfilled') {
@@ -110,7 +114,11 @@ export const DashboardPage = () => {
           setHealthStatus('Unavailable');
         }
       } catch (err) {
-        setError(err.message || 'An error occurred while loading dashboard telemetry');
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            'An error occurred while loading dashboard telemetry'
+        );
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -294,7 +302,7 @@ export const DashboardPage = () => {
           title="Services"
           value={stats ? stats.uniqueServices : '—'}
           subtitle="Monitored Apps"
-          badgeText="Registered"
+          badgeText="Observed"
           badgeType="neutral"
           icon={Layers}
           iconColor="text-secondary"
@@ -326,7 +334,7 @@ export const DashboardPage = () => {
             errorHits={stats?.errorHits || 0}
             totalHits={stats?.totalHits || 0}
             isLoading={isLoading}
-            error={dashboardData?.stats === null ? 'Yield calculations unavailable' : null}
+            error={dashboardData?.stats === null ? 'Success rate calculations unavailable' : null}
           />
         </div>
       </div>

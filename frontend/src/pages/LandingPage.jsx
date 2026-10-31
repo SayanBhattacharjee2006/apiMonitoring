@@ -715,10 +715,10 @@ response = requests.post(
                   <Gauge className="w-6 h-6" />
                 </div>
                 <h3 className="font-serif text-xl font-semibold text-ink-primary">
-                  Real-Time Ingestion Analytics
+                  Asynchronous Ingestion & Hourly Analytics
                 </h3>
                 <p className="text-sm text-ink-secondary leading-relaxed">
-                  Gain immediate visibility into endpoint traffic, error rates, and arithmetic mean latency across services and endpoints with tenant-isolated filtering.
+                  Asynchronously ingest telemetry via RabbitMQ and inspect hourly aggregated endpoint traffic, error rates, and weighted mean latency across services with strict tenant isolation.
                 </p>
                 <div className="mt-4 pt-4 border-t border-hairline/40 flex items-center justify-between text-xs text-ink-secondary font-medium">
                   <span>Granularity: Time-Bucket Rollups</span>
@@ -903,7 +903,7 @@ response = requests.post(
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#154620]" />
-                  Real-time telemetry aggregation
+                  Asynchronous ingestion & hourly aggregation
                 </span>
                 <span className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-[#154620]" />

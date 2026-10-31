@@ -35,7 +35,7 @@ export const YieldDonutChart = ({
     return (
       <div className="p-6 rounded-xl bg-card-surface border border-hairline/60 shadow-sm flex flex-col justify-center items-center h-80">
         <div className="w-8 h-8 rounded-full border-2 border-burgundy border-t-transparent animate-spin mb-2" />
-        <span className="text-xs uppercase font-bold text-ink-secondary">Computing Ingest Yield...</span>
+        <span className="text-xs uppercase font-bold text-ink-secondary">Computing Success Rate...</span>
       </div>
     );
   }
@@ -43,7 +43,7 @@ export const YieldDonutChart = ({
   if (error) {
     return (
       <div className="p-6 rounded-xl bg-card-surface border border-hairline/60 shadow-sm flex flex-col justify-center items-center h-80 text-center">
-        <p className="text-xs font-semibold text-error mb-1">Failed to calculate yield</p>
+        <p className="text-xs font-semibold text-error mb-1">Failed to calculate success rate</p>
         <p className="text-xs text-ink-secondary">{error}</p>
       </div>
     );
@@ -54,11 +54,11 @@ export const YieldDonutChart = ({
       <div className="p-6 rounded-xl bg-card-surface border border-hairline/60 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-[10px] font-bold uppercase tracking-wider text-ink-secondary">Telemetry Ledger 02</span>
-          <span className="px-1.5 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-burgundy">Yield</span>
+          <span className="px-1.5 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-burgundy">Success vs Error</span>
         </div>
         <EmptyState
           icon={PieIcon}
-          title="No Traffic for Yield Analysis"
+          title="No Traffic for Success vs Error Analysis"
           description="Awaiting telemetry hits to compute success vs error proportions."
         />
       </div>
@@ -120,7 +120,7 @@ export const YieldDonutChart = ({
             Total Ingest
           </span>
           <span className="text-[11px] font-semibold text-[#3B5738] mt-0.5">
-            {yieldRate}% Yield
+            {yieldRate}% Success Rate
           </span>
         </div>
       </div>

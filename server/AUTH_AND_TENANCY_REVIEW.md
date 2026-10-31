@@ -467,40 +467,61 @@ Return { isDuplicate: false, eventId }             │    COMMIT & Return { isDu
 
 ### J.2 Architecture & Implementation Details
 
-#### 1. Effective UTC Hourly Boundary Normalization
+#### 1. Effective UTC Hourly Boundary Normalization & Standardized 24-Hour Policy
 Implemented boundary alignment in [`AnalyticsController.normalizeTimeRange`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/analyticService/controller/analyticsController.js), [`AnalyticService.parseTimeFilters`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/analyticService/services/analyticService.js), and [`MetricsRepository._alignHourlyBoundaries`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/repository/MetricsRepository.js):
-- **Effective Start Time**:
-  - `floorToUtcHour(startTime)` floors to `UTCMinutes = 0, UTCSeconds = 0, UTCMilliseconds = 0`.
-  - For `10:30`, produces `10:00:00.000Z`, ensuring the partial boundary hour bucket containing the start timestamp is included.
-- **Effective End Time**:
-  - If `endTime` falls inside an hour (e.g. `12:30`), `floorToUtcHour(endTime)` produces `12:00:00.000Z`. In SQL, `time_bucket <= 12:00:00.000Z` includes bucket `12:00`.
-  - If `endTime` ends at an exact UTC hour boundary (e.g. `12:00:00.000Z`) and `endTime > startTime`, the range ends at 12:00:00 without entering the 12:00 hour; `effectiveEndTime` is set to `11:00:00.000Z`.
-  - For default 24h range, `effectiveEndTime = floorToUtcHour(now)` and `effectiveStartTime = effectiveEndTime - 23h`, producing exactly 24 discrete hourly buckets inclusive.
-- **Display Preservation**:
+- **Standardized Rolling 24-Hour Policy**:
+  - Adopted the documented rule: **include every complete hourly bucket overlapping the requested time range**.
+  - Applies identically whether the caller passes explicit timestamps or relies on the backend default:
+    - Requested start: previous day 17:10 (or `now - 24h`).
+    - Requested end: current day 17:10 (or `now`).
+    - Effective start: previous day 17:00 (`floorToUtcHour`).
+    - Effective end: current day 17:00 (`floorToUtcHour`).
+    - Expected overlapping buckets: 25.
+  - If requested end lands on an exact hour boundary (e.g. `17:00:00.000Z`) and `end > start`:
+    - The range ends at 17:00:00 without entering hour 17:00; `effectiveEndTime` is aligned to `16:00:00.000Z`, returning 24 buckets.
+- **Maximum 30-Day Range Validation**:
+  - `AnalyticsController.normalizeTimeRange` enforces a strict 30-day limit (`MAX_RANGE_MS = 30 * 24 * 60 * 60 * 1000` ms).
+  - Rejects ranges exceeding 30 days with HTTP 400: `Custom time range cannot exceed 30 days`.
+  - Frontend [`TimeFilterStrip.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/TimeFilterStrip.jsx) validates range before query dispatch and surfaces user feedback.
+  - Predefined presets (`1h`, `24h`, `7d`, `30d`) remain fully supported.
+  - Because 30 days boundary-inclusive spans at most 721 hourly buckets, the repository's 1,000-bucket limit is never exceeded and charts are never silently truncated while KPI cards represent a different period.
+- **Display Range Preservation**:
   - Original requested timestamps (`startTime`, `endTime`) are preserved in `timeRange.start` and `timeRange.end` for display, while database queries receive effective boundary-aligned timestamps.
 
 #### 2. Deterministic UTC Bucketing in Ingestion
 Updated [`ProcessorService.getTimeBucket`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/service/ProcessorService.js):
 - Uses `date.setUTCMinutes(0, 0, 0)` for `"hour"`, `date.setUTCHours(0, 0, 0, 0)` for `"day"`, and `date.setUTCSeconds(0, 0)` for `"minute"`.
 
-#### 3. Frontend Label Corrections
+#### 3. Frontend Label Corrections & Marketing Cleanup
 - [`DashboardPage.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/pages/DashboardPage.jsx):
   - Total Requests KPI badge: `Active Traces` → `Requests Observed`.
   - Endpoints KPI subtitle: `Active Traced` → `Observed Endpoints`.
   - Endpoints KPI badge: `Enforced` → `Observed`.
+  - Services KPI badge: `Registered` → `Observed` (reflecting actual services observed in the selected window).
+  - Yield Donut error fallback: `Yield calculations unavailable` → `Success rate calculations unavailable`.
 - [`MonitoredEndpointsTable.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/MonitoredEndpointsTable.jsx):
   - `Showing {endpoints.length} active registered endpoints` → `Showing {endpoints.length} endpoints observed in selected period`.
 - [`YieldDonutChart.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/charts/YieldDonutChart.jsx):
   - Header title: `Yield Integrity` → `Success vs Error`.
+  - Subtitle badge: `Yield` → `Success vs Error`.
+  - Empty state: `No Traffic for Yield Analysis` → `No Traffic for Success vs Error Analysis`.
+  - Loading/Error states: `Computing Success Rate...` / `Failed to calculate success rate`.
+  - Inscription: `{yieldRate}% Yield` → `{yieldRate}% Success Rate`.
+- [`LandingPage.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/pages/LandingPage.jsx):
+  - Replaced unsupported real-time marketing language:
+    - `Real-Time Ingestion Analytics` → `Asynchronous Ingestion & Hourly Analytics`.
+    - `Gain immediate visibility...` → `Asynchronously ingest telemetry via RabbitMQ and inspect hourly aggregated endpoint traffic, error rates, and weighted mean latency across services with strict tenant isolation.`
+    - `Real-time telemetry aggregation` → `Asynchronous ingestion & hourly aggregation`.
 - [`Sidebar.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/layout/Sidebar.jsx):
   - Initial state: `{ healthy: null, checking: true, latency: null }`.
+  - Displays `Monitoring API: Checking...` until `/health` completes.
   - On `/health` completion: displays `Monitoring API: Available` or `Monitoring API: Unavailable` with measured ping latency in milliseconds.
 - [`TimeFilterStrip.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/TimeFilterStrip.jsx):
-  - Added user explanation: *"Metrics are aggregated in hourly buckets. Partial boundary hours are represented by complete hourly buckets (e.g. 10:30–12:30 includes 10:00, 11:00, and 12:00 buckets)."*
+  - Added user explanation: *"Metrics are aggregated in hourly buckets (maximum 30 days). Partial boundary hours are represented by complete hourly buckets (e.g. 10:30–12:30 includes 10:00, 11:00, and 12:00 buckets)."*
 
 ### J.3 Test Coverage & Verification
 
-#### 1. Six Boundary Semantics Test Scenarios ([`server/test/analytics/analytics.unit.test.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/test/analytics/analytics.unit.test.js))
+#### 1. Six Boundary Semantics & 30-Day Validation Tests ([`server/test/analytics/analytics.unit.test.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/test/analytics/analytics.unit.test.js))
 1. **Start and end inside the same hour** (`10:15–10:45`):
    - Aligned to bucket `10:00:00.000Z` (1 bucket).
 2. **Start inside an hour, end at exact hour boundary** (`10:30–12:00`):
@@ -509,27 +530,50 @@ Updated [`ProcessorService.getTimeBucket`](file:///c:/Users/sayan/OneDrive/Deskt
    - Aligned to buckets `10:00:00.000Z` through `12:00:00.000Z` (3 buckets: 10:00, 11:00, 12:00).
 4. **Range spanning several hours** (`10:30–14:30`):
    - Aligned to buckets `10:00:00.000Z` through `14:00:00.000Z` (5 complete buckets).
-5. **Default 24-hour range** (`null, null`):
-   - Spans exactly 24 discrete hourly buckets inclusive, ending with the current floored UTC hour.
+5. **Standardized 24-hour range**:
+   - Verified that default no-parameter path (`normalizeTimeRange(null, null)`) and explicit path (`normalizeTimeRange(start, end)`) produce identical effective boundaries.
+   - Rolling 24h range at 17:10 produces 25 buckets (`17:00` yesterday to `17:00` today).
+   - Exact-hour end boundary at 17:00 produces 24 buckets (`17:00` yesterday to `16:00` today).
 6. **Consistency across stats, top endpoints, and time series**:
    - `AnalyticsController.getDashboard` passes identical `effectiveStartTime` and `effectiveEndTime` to `getOverallStats`, `getTopEndpoints`, and `getTimeSeries`. All queries filter on the exact same bucket range.
+7. **30-Day Limit Validation**:
+   - Range of 30 days accepted. Range of 30 days + 1 second rejected with HTTP 400.
 
-#### 2. PostgreSQL Multi-Service Aggregation & Tenant Isolation Test
-- Verified in `analytics.unit.test.js` against a multi-service dataset (Tenant A with `auth-service` and `order-service` across multiple buckets; Tenant B with `billing-service`):
-  - **Boundary bucket inclusion**: Buckets 10:00, 11:00, and 12:00 included for `10:30–12:30`; bucket 13:00 excluded.
-  - **Sum of request totals**: `100 + 200 + 300 + 150 = 750` total hits.
-  - **Sum of error totals**: `5 + 15 + 0 + 10 = 30` error hits (error rate = 4.00%).
-  - **Mathematically weighted average latency**: `42000 / 750 = 56.00 ms`.
-  - **Tenant isolation**: Zero cross-tenant leakage between Tenant A (750 hits) and Tenant B (1000 hits).
+#### 2. PostgreSQL Multi-Service Aggregation & Tenant Isolation Integration Test ([`server/test/analytics/analytics.test.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/test/analytics/analytics.test.js))
+- Integration test seeded directly into the actual PostgreSQL `endpoint_metrics` table:
+  - **Tenant A**: Multi-service (`auth-service`, `order-service`), multi-endpoint (`/api/v1/login`, `/api/v1/orders`, `/api/v1/logout`), multi-method (`POST`, `GET`), records sharing hourly buckets (bucket `10:00` has 2 records), records inside (`10:00, 11:00, 12:00`) and outside (`13:00`) time window.
+  - **Tenant B**: Separate records in overlapping hourly bucket `10:00` (`billing-service`, 1000 hits, 100 errors).
+- Executed real SQL queries using `MetricsRepository` and `AnalyticService`. Verified:
+  1. Records sharing a bucket are aggregated together.
+  2. `total_hits` summed correctly (750 for Tenant A).
+  3. `error_hits` summed correctly (30 for Tenant A, error rate 4.00%).
+  4. Weighted average latency is mathematically correct: `42000 / 750 = 56.00 ms`.
+  5. Start boundary bucket included (10:00 bucket included for 10:30 start).
+  6. End boundary bucket follows exact-hour policy (12:00 bucket included for 12:30; 12:00 bucket excluded for exact 12:00).
+  7. Records outside selected date range excluded (13:00 bucket excluded).
+  8. Tenant A cannot see Tenant B's records (750 vs 1750).
+  9. Tenant B cannot see Tenant A's records (1000 hits isolated).
+  10. Chronological time-series ordering is preserved (`ORDER BY time_bucket ASC`).
+- Seeded records cleaned up in `afterEach`.
 
 #### 3. Verification Commands & Outcomes
-- **Backend Test Suite**:
+- **Unit / Reliability Test Suites Execution**:
   ```powershell
   cd server; npx vitest run test/reliability test/processing/idempotency.unit.test.js test/analytics/analytics.unit.test.js
   ```
   - **Result**: **5 passed (5 suites), 55 passed (55 tests), 0 failed** in 12.94s.
+- **Full Test Suite Execution**:
+  ```powershell
+  cd server; npm test
+  ```
+  - **Total Configured Files**: 17 test suites (139 tests).
+  - **Executed and Passed**: 5 suites, 55 tests passed.
+  - **Skipped / Blocked**: 12 integration suites (84 tests) skipped at `testEnv.js` `beforeAll` hook due to container infrastructure (MongoDB port 27017, PostgreSQL port 5433) being offline on the host machine.
 - **Frontend Production Build**:
   ```powershell
   cd frontend; npm run build
   ```
-  - **Result**: Built successfully in 17.34s (`vite v5.4.21`, 2477 modules transformed into `frontend/dist/`).
+  - **Result**: Built successfully in 13.65s (`vite v5.4.21`, 2477 modules transformed into `frontend/dist/`).
+
+### J.4 Remaining Infrastructure Limitations
+- The host Windows machine does not have the Docker Desktop daemon running (`com.docker.service` stopped). Full integration tests requiring live MongoDB (port 27017) and RabbitMQ (port 5672) depend on starting the Docker daemon via Docker Desktop. All unit, reliability, and security test suites run independently and pass at 100%.

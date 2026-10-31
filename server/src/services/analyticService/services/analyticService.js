@@ -64,7 +64,6 @@ export class AnalyticService {
         }
 
         if (!start && !end) {
-            isDefault24h = true;
             end = now;
             start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         } else if (start && !end) {
@@ -74,18 +73,9 @@ export class AnalyticService {
         }
 
         if (!effectiveStartTime || !effectiveEndTime) {
-            if (isDefault24h) {
-                const effEnd = new Date(end);
-                effEnd.setUTCMinutes(0, 0, 0);
-                effectiveEndTime = effEnd;
-                effectiveStartTime = new Date(
-                    effEnd.getTime() - 23 * 60 * 60 * 1000
-                );
-            } else {
-                const aligned = this.alignToHourlyBuckets(start, end);
-                effectiveStartTime = effectiveStartTime || aligned.effectiveStartTime;
-                effectiveEndTime = effectiveEndTime || aligned.effectiveEndTime;
-            }
+            const aligned = this.alignToHourlyBuckets(start, end);
+            effectiveStartTime = effectiveStartTime || aligned.effectiveStartTime;
+            effectiveEndTime = effectiveEndTime || aligned.effectiveEndTime;
         }
 
         return {

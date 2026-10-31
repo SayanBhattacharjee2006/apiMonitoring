@@ -86,7 +86,7 @@ export const AnalyticsPage = () => {
           setDashboardData(res.data);
         }
       } catch (err) {
-        setError(err.message || 'Failed to fetch analytics ledger');
+        setError(err.response?.data?.message || err.message || 'Failed to fetch analytics ledger');
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);

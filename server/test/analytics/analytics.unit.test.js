@@ -492,27 +492,44 @@ describe("Phase 13: Analytics Date Filtering, Aggregation & Dashboard Consistenc
             expect(hoursCovered).toBe(5);
         });
 
-        // Scenario 5: Default 24-hour range
-        it("Scenario 5: Default 24-hour range produces exactly 24 discrete hourly buckets ending with current hour", () => {
-            const range = analyticsController.normalizeTimeRange(null, null);
+        // Scenario 5: Standardized 24-hour boundary semantics (default and explicit paths)
+        it("Scenario 5: Standardized 24-hour boundary semantics selects identical effective boundaries for default and explicit paths", () => {
+            // Path A: Default no-parameter backend range
+            const defaultRange = analyticsController.normalizeTimeRange(null, null);
 
-            expect(range.effectiveStartTime).toBeInstanceOf(Date);
-            expect(range.effectiveEndTime).toBeInstanceOf(Date);
+            // Path B: Explicit requested range with the same start and end timestamps
+            const explicitRange = analyticsController.normalizeTimeRange(
+                defaultRange.startTime.toISOString(),
+                defaultRange.endTime.toISOString()
+            );
 
-            // Minutes and seconds are floored to 0 UTC
-            expect(range.effectiveStartTime.getUTCMinutes()).toBe(0);
-            expect(range.effectiveStartTime.getUTCSeconds()).toBe(0);
-            expect(range.effectiveEndTime.getUTCMinutes()).toBe(0);
-            expect(range.effectiveEndTime.getUTCSeconds()).toBe(0);
+            // Both paths must produce identical effective hourly boundaries
+            expect(defaultRange.effectiveStartTime.toISOString()).toBe(explicitRange.effectiveStartTime.toISOString());
+            expect(defaultRange.effectiveEndTime.toISOString()).toBe(explicitRange.effectiveEndTime.toISOString());
 
-            // Exactly 23 hours difference between start and end bucket timestamps = 24 buckets inclusive
-            const bucketCount =
-                (range.effectiveEndTime.getTime() - range.effectiveStartTime.getTime()) / (60 * 60 * 1000) + 1;
-            expect(bucketCount).toBe(24);
+            // Rolling 24-hour test at specific minute (e.g. 17:10)
+            const rollingStart = "2026-10-30T17:10:00.000Z";
+            const rollingEnd = "2026-10-31T17:10:00.000Z";
+            const rollingRange = analyticsController.normalizeTimeRange(rollingStart, rollingEnd);
 
-            // Original requested span is 24 hours
-            const originalSpan = range.endTime.getTime() - range.startTime.getTime();
-            expect(originalSpan).toBe(24 * 60 * 60 * 1000);
+            expect(rollingRange.effectiveStartTime.toISOString()).toBe("2026-10-30T17:00:00.000Z");
+            expect(rollingRange.effectiveEndTime.toISOString()).toBe("2026-10-31T17:00:00.000Z");
+
+            // Complete hourly buckets overlapping requested range: 17:00 yesterday through 17:00 today = 25 buckets
+            const rollingBucketCount =
+                (rollingRange.effectiveEndTime.getTime() - rollingRange.effectiveStartTime.getTime()) / (60 * 60 * 1000) + 1;
+            expect(rollingBucketCount).toBe(25);
+
+            // Preserve existing exact-hour end boundary behavior (e.g., 17:00 exact boundary)
+            const exactStart = "2026-10-30T17:00:00.000Z";
+            const exactEnd = "2026-10-31T17:00:00.000Z";
+            const exactRange = analyticsController.normalizeTimeRange(exactStart, exactEnd);
+
+            expect(exactRange.effectiveStartTime.toISOString()).toBe("2026-10-30T17:00:00.000Z");
+            expect(exactRange.effectiveEndTime.toISOString()).toBe("2026-10-31T16:00:00.000Z");
+            const exactBucketCount =
+                (exactRange.effectiveEndTime.getTime() - exactRange.effectiveStartTime.getTime()) / (60 * 60 * 1000) + 1;
+            expect(exactBucketCount).toBe(24);
         });
 
         // Scenario 6: Consistency across stats, top endpoints, and time series
@@ -616,196 +633,20 @@ describe("Phase 13: Analytics Date Filtering, Aggregation & Dashboard Consistenc
             expect(responseData.recentTimeSeries.length).toBe(3);
         });
 
-        // PostgreSQL Aggregation & Tenant Isolation Multi-Service Test
-        it("verifies multi-service PostgreSQL aggregation: totals, errors, weighted latency, boundary inclusion, and tenant isolation", async () => {
-            // Simulated PostgreSQL database table with multi-service records across tenants
-            const databaseRecords = [
-                // Tenant A - Bucket 10:00 (Start boundary bucket, containing 10:30)
-                {
-                    client_id: "tenant-A",
-                    service_name: "auth-service",
-                    endpoint: "/api/v1/login",
-                    method: "POST",
-                    time_bucket: new Date("2026-10-31T10:00:00.000Z"),
-                    total_hits: 100,
-                    error_hits: 5,
-                    avg_latency: 40.0,
-                },
-                {
-                    client_id: "tenant-A",
-                    service_name: "order-service",
-                    endpoint: "/api/v1/orders",
-                    method: "GET",
-                    time_bucket: new Date("2026-10-31T10:00:00.000Z"),
-                    total_hits: 200,
-                    error_hits: 15,
-                    avg_latency: 70.0,
-                },
-                // Tenant A - Bucket 11:00 (Intermediate bucket)
-                {
-                    client_id: "tenant-A",
-                    service_name: "order-service",
-                    endpoint: "/api/v1/orders",
-                    method: "POST",
-                    time_bucket: new Date("2026-10-31T11:00:00.000Z"),
-                    total_hits: 300,
-                    error_hits: 0,
-                    avg_latency: 50.0,
-                },
-                // Tenant A - Bucket 12:00 (End boundary bucket, containing 12:30)
-                {
-                    client_id: "tenant-A",
-                    service_name: "auth-service",
-                    endpoint: "/api/v1/logout",
-                    method: "POST",
-                    time_bucket: new Date("2026-10-31T12:00:00.000Z"),
-                    total_hits: 150,
-                    error_hits: 10,
-                    avg_latency: 60.0,
-                },
-                // Tenant A - Bucket 13:00 (OUTSIDE the requested 10:30–12:30 window)
-                {
-                    client_id: "tenant-A",
-                    service_name: "auth-service",
-                    endpoint: "/api/v1/logout",
-                    method: "POST",
-                    time_bucket: new Date("2026-10-31T13:00:00.000Z"),
-                    total_hits: 500,
-                    error_hits: 50,
-                    avg_latency: 200.0,
-                },
-                // Tenant B - Bucket 10:00 (Cross-tenant data that MUST NOT leak into Tenant A)
-                {
-                    client_id: "tenant-B",
-                    service_name: "billing-service",
-                    endpoint: "/api/v1/invoices",
-                    method: "GET",
-                    time_bucket: new Date("2026-10-31T10:00:00.000Z"),
-                    total_hits: 1000,
-                    error_hits: 100,
-                    avg_latency: 99.0,
-                },
-            ];
+        // Maximum Range Validation Test
+        it("validates maximum custom range of 30 days and rejects larger ranges with HTTP 400", () => {
+            // Exactly 30 days is accepted
+            const start30d = "2026-10-01T00:00:00.000Z";
+            const end30d = "2026-10-31T00:00:00.000Z";
+            const range30d = analyticsController.normalizeTimeRange(start30d, end30d);
+            expect(range30d.effectiveStartTime).toBeDefined();
 
-            // Real SQL aggregation logic simulator matching PostgreSQL's SUM/AVG/COUNT functions
-            const mockPg = {
-                query: vi.fn().mockImplementation(async ({ text, values }) => {
-                    let filtered = [...databaseRecords];
-
-                    // Check client_id isolation
-                    if (text.includes("client_id = $1")) {
-                        filtered = filtered.filter((r) => r.client_id === values[0]);
-                    }
-
-                    // Check time_bucket >= start and time_bucket <= end
-                    const startVal = values.find((v) => v instanceof Date && v.toISOString().includes("10:00:00"));
-                    const endVal = values.find((v) => v instanceof Date && v.toISOString().includes("12:00:00"));
-                    if (startVal) {
-                        filtered = filtered.filter((r) => r.time_bucket.getTime() >= startVal.getTime());
-                    }
-                    if (endVal) {
-                        filtered = filtered.filter((r) => r.time_bucket.getTime() <= endVal.getTime());
-                    }
-
-                    if (text.includes("COUNT(DISTINCT service_name)")) {
-                        // Overall stats
-                        const total_hits = filtered.reduce((sum, r) => sum + r.total_hits, 0);
-                        const error_hits = filtered.reduce((sum, r) => sum + r.error_hits, 0);
-                        const weighted_latency_sum = filtered.reduce(
-                            (sum, r) => sum + r.avg_latency * r.total_hits,
-                            0
-                        );
-                        const avg_latency = total_hits > 0 ? (weighted_latency_sum / total_hits).toFixed(3) : "0.000";
-                        const unique_services = new Set(filtered.map((r) => r.service_name)).size;
-                        const unique_endpoints = new Set(filtered.map((r) => r.endpoint)).size;
-
-                        return {
-                            rows: [{
-                                total_hits: String(total_hits),
-                                error_hits: String(error_hits),
-                                avg_latency,
-                                unique_services: String(unique_services),
-                                unique_endpoints: String(unique_endpoints),
-                            }],
-                        };
-                    }
-
-                    if (text.includes("GROUP BY time_bucket")) {
-                        // Time series
-                        const byBucket = new Map();
-                        for (const r of filtered) {
-                            const key = r.time_bucket.toISOString();
-                            if (!byBucket.has(key)) {
-                                byBucket.set(key, { total_hits: 0, error_hits: 0, latency_sum: 0 });
-                            }
-                            const b = byBucket.get(key);
-                            b.total_hits += r.total_hits;
-                            b.error_hits += r.error_hits;
-                            b.latency_sum += r.avg_latency * r.total_hits;
-                        }
-
-                        const rows = Array.from(byBucket.entries())
-                            .sort(([a], [b]) => a.localeCompare(b))
-                            .map(([time_bucket, b]) => ({
-                                time_bucket,
-                                total_hits: String(b.total_hits),
-                                error_hits: String(b.error_hits),
-                                avg_latency: (b.latency_sum / b.total_hits).toFixed(3),
-                            }));
-
-                        return { rows };
-                    }
-
-                    return { rows: [] };
-                }),
-            };
-
-            const repo = new MetricsRepository({ postgres: mockPg, logger: mockLogger });
-            const service = new AnalyticService({ metricRepo: repo });
-
-            // Query Tenant A for window 10:30–12:30 (effective 10:00–12:00)
-            const statsA = await service.getOverallStats("tenant-A", {
-                startTime: new Date("2026-10-31T10:30:00.000Z"),
-                endTime: new Date("2026-10-31T12:30:00.000Z"),
-            });
-
-            // 1. Boundary bucket inclusion: 10:00, 11:00, 12:00 included; 13:00 excluded
-            // 2. Sum of request totals: 100 + 200 + 300 + 150 = 750 (NOT 1250 which would include 13:00)
-            expect(statsA.totalHits).toBe(750);
-
-            // 3. Sum of error totals: 5 + 15 + 0 + 10 = 30
-            expect(statsA.errorHits).toBe(30);
-            expect(statsA.successHits).toBe(720);
-            expect(statsA.errorRate).toBe(4.0); // (30 / 750) * 100 = 4.00%
-
-            // 4. Mathematically correct weighted average latency:
-            // Sum(latency * hits) = (40*100) + (70*200) + (50*300) + (60*150) = 4000 + 14000 + 15000 + 9000 = 42000
-            // Weighted average = 42000 / 750 = 56.00 ms
-            expect(statsA.avgLatency).toBe(56.0);
-
-            // 5. Unique services & endpoints
-            expect(statsA.uniqueServices).toBe(2); // auth-service, order-service
-            expect(statsA.uniqueEndpoints).toBe(3); // /api/v1/login, /api/v1/orders, /api/v1/logout
-
-            // 6. Tenant isolation: verify Tenant B data (1000 hits, 100 errors) is completely isolated
-            const statsB = await service.getOverallStats("tenant-B", {
-                startTime: new Date("2026-10-31T10:30:00.000Z"),
-                endTime: new Date("2026-10-31T12:30:00.000Z"),
-            });
-            expect(statsB.totalHits).toBe(1000);
-            expect(statsB.errorHits).toBe(100);
-            expect(statsB.avgLatency).toBe(99.0);
-            expect(statsB.uniqueServices).toBe(1);
-
-            // Time series for Tenant A has exactly 3 hourly points (10:00, 11:00, 12:00)
-            const timeSeriesA = await service.getTimeSeries("tenant-A", {
-                startTime: new Date("2026-10-31T10:30:00.000Z"),
-                endTime: new Date("2026-10-31T12:30:00.000Z"),
-            });
-            expect(timeSeriesA.length).toBe(3);
-            expect(timeSeriesA[0].totalHits).toBe(300); // 100 + 200 in bucket 10:00
-            expect(timeSeriesA[1].totalHits).toBe(300); // 300 in bucket 11:00
-            expect(timeSeriesA[2].totalHits).toBe(150); // 150 in bucket 12:00
+            // 30 days + 1 second is rejected with 400
+            const startOver = "2026-10-01T00:00:00.000Z";
+            const endOver = "2026-10-31T00:00:01.000Z";
+            expect(() => analyticsController.normalizeTimeRange(startOver, endOver)).toThrow(
+                /Custom time range cannot exceed 30 days/
+            );
         });
     });
 });
