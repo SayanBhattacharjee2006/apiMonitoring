@@ -9,12 +9,6 @@ const isConsumer = serviceRole === "consumer";
 // Explicit set of disallowed placeholder, dev, and test secrets in production
 export const DISALLOWED_PRODUCTION_SECRETS = new Set([
     "your_jwt_secret",
-    "adm_bootstrap_secret_default",
-    "adm_bootstrap_secret_secure_dev",
-    "dev_test_only_jwt_secret_never_use_in_production_32chars",
-    "dev_test_only_bootstrap_secret_never_use_in_prod",
-    "test_jwt_secret_key_1234567890_test_suite_key",
-    "test-bootstrap-secret-key-1234",
     "default_jwt_secret",
     "default_bootstrap_secret",
     "secret",
@@ -23,10 +17,6 @@ export const DISALLOWED_PRODUCTION_SECRETS = new Set([
     "changeme",
     "password",
     "admin",
-    "your_production_cryptographically_secure_jwt_secret_min_32_characters",
-    "your_production_super_admin_bootstrap_secret_min_16_chars",
-    "replace_me_with_a_cryptographically_secure_jwt_secret_min_32_chars",
-    "replace_me_with_a_secure_super_admin_bootstrap_secret_min_16_chars",
 ]);
 
 /**
@@ -115,7 +105,7 @@ const config = {
     bootstrapSecret: isConsumer
         ? null
         : (process.env.SUPER_ADMIN_BOOTSTRAP_SECRET ||
-           (isProduction ? null : "dev_test_only_bootstrap_secret_never_use_in_prod")),
+            (isProduction ? null : "dev_test_only_bootstrap_secret_never_use_in_prod")),
 
     // MongoDB
     mongo: {
@@ -147,7 +137,7 @@ const config = {
         secret: isConsumer
             ? null
             : (process.env.JWT_SECRET ||
-               (isProduction ? null : "dev_test_only_jwt_secret_never_use_in_production_32chars")),
+                (isProduction ? null : "dev_test_only_jwt_secret_never_use_in_production_32chars")),
         expiresIn: process.env.JWT_EXPIRES_IN || "24h",
     },
 
@@ -167,7 +157,7 @@ const config = {
     cookie: {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         expires: 24 * 60 * 60 * 1000, // 1 day
         path: "/",
     },

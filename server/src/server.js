@@ -21,7 +21,10 @@ const app = express();
  */
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); //this is used to parse urlencoded bodies
 app.use(cookieParser());
@@ -153,7 +156,7 @@ async function startServer() {
         })
 
         process.on("unhandledRejection", (reason, promise) => {
-            logger.error("Unhandled Rejection at ",promise, 'reson: ', reason );
+            logger.error("Unhandled Rejection at ", promise, 'reson: ', reason);
             gracefullShutdown("unhandledRejection");
         })
     } catch (error) {
