@@ -6,7 +6,7 @@ import axios from 'axios';
  * Sends and receives HTTP-only authentication cookies automatically (withCredentials: true).
  */
 const apiClient = axios.create({
-  baseURL: '',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -22,7 +22,7 @@ apiClient.interceptors.response.use(
   (error) => {
     // Extract backend error message if present in standard response structure
     let message = 'An unexpected network error occurred';
-    
+
     if (error.response?.data) {
       const data = error.response.data;
       if (typeof data.message === 'string') {

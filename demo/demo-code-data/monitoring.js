@@ -5,25 +5,27 @@ const axios = require("axios");
  * Reusable across different client applications
  */
 const monitoringMiddleware = (options = {}) => {
-    const {
-        apiKey = process.env.MONITORING_API_KEY,
-        endpoint = process.env.MONITORING_ENDPOINT ||
-            "http://127.0.0.1:5000/api/hit",
-        serviceName = process.env.SERVICE_NAME || "my-service",
-        enableLogging = process.env.NODE_ENV !== "production",
-        timeout = 3000,
-        enabled = process.env.MONITORING_ENABLED !== "false",
-    } = options;
-
-    // If monitoring is disabled or no API key, return pass-through middleware
-    if (!enabled || !apiKey) {
-        if (enableLogging && !apiKey) {
-            console.warn("Monitoring middleware: API key not configured");
-        }
-        return (req, res, next) => next();
-    }
-
     return (req, res, next) => {
+        const enabled = options.enabled !== undefined 
+            ? options.enabled 
+            : process.env.MONITORING_ENABLED !== "false";
+            
+        const apiKey = options.apiKey || process.env.MONITORING_API_KEY;
+        const endpoint = options.endpoint || process.env.MONITORING_ENDPOINT || "http://127.0.0.1:5000/api/hit";
+        const serviceName = options.serviceName || process.env.SERVICE_NAME || "my-service";
+        const enableLogging = options.enableLogging !== undefined 
+            ? options.enableLogging 
+            : process.env.NODE_ENV !== "production";
+        const timeout = options.timeout || 3000;
+
+        // If monitoring is disabled or no API key, skip tracking
+        if (!enabled || !apiKey) {
+            if (enableLogging && !apiKey) {
+                console.warn("Monitoring middleware: API key not configured");
+            }
+            return next();
+        }
+
         const startTime = Date.now();
 
         // Capture the original response end function
