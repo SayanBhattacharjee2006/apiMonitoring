@@ -7,51 +7,106 @@ export class AnalyticService {
         this.metricRepo = metricRepo;
     }
 
-    parseTimeFilters(filters = {}) {
-        let { startTime, endTime } = filters;
+    alignToHourlyBuckets(startTime, endTime) {
+        const floorToUtcHour = (d) => {
+            const copy = new Date(d);
+            copy.setUTCMinutes(0, 0, 0);
+            return copy;
+        };
 
-        if (startTime instanceof Date && endTime instanceof Date) {
-            return { startTime, endTime };
-        }
+        const isExactUtcHour = (d) => {
+            return (
+                d.getUTCMinutes() === 0 &&
+                d.getUTCSeconds() === 0 &&
+                d.getUTCMilliseconds() === 0
+            );
+        };
 
-        const now = new Date();
+        const start = new Date(startTime);
+        const end = new Date(endTime);
 
-        if (!startTime && !endTime) {
-            return {
-                startTime: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-                endTime: now,
-            };
-        }
+        const effectiveStart = floorToUtcHour(start);
+        let effectiveEnd;
 
-        if (startTime && !endTime) {
-            const start = new Date(startTime);
-            return {
-                startTime: start,
-                endTime: now,
-            };
-        }
-
-        if (!startTime && endTime) {
-            const end = new Date(endTime);
-            return {
-                startTime: new Date(end.getTime() - 24 * 60 * 60 * 1000),
-                endTime: end,
-            };
+        if (isExactUtcHour(end) && end.getTime() > start.getTime()) {
+            effectiveEnd = new Date(end.getTime() - 60 * 60 * 1000);
+            if (effectiveEnd.getTime() < effectiveStart.getTime()) {
+                effectiveEnd = effectiveStart;
+            }
+        } else {
+            effectiveEnd = floorToUtcHour(end);
         }
 
         return {
-            startTime: new Date(startTime),
-            endTime: new Date(endTime),
+            effectiveStartTime: effectiveStart,
+            effectiveEndTime: effectiveEnd,
+        };
+    }
+
+    parseTimeFilters(filters = {}) {
+        let { startTime, endTime, effectiveStartTime, effectiveEndTime } = filters;
+
+        let start;
+        let end;
+        const now = new Date();
+        let isDefault24h = false;
+
+        if (startTime instanceof Date) {
+            start = startTime;
+        } else if (startTime) {
+            start = new Date(startTime);
+        }
+
+        if (endTime instanceof Date) {
+            end = endTime;
+        } else if (endTime) {
+            end = new Date(endTime);
+        }
+
+        if (!start && !end) {
+            isDefault24h = true;
+            end = now;
+            start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        } else if (start && !end) {
+            end = now;
+        } else if (!start && end) {
+            start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        }
+
+        if (!effectiveStartTime || !effectiveEndTime) {
+            if (isDefault24h) {
+                const effEnd = new Date(end);
+                effEnd.setUTCMinutes(0, 0, 0);
+                effectiveEndTime = effEnd;
+                effectiveStartTime = new Date(
+                    effEnd.getTime() - 23 * 60 * 60 * 1000
+                );
+            } else {
+                const aligned = this.alignToHourlyBuckets(start, end);
+                effectiveStartTime = effectiveStartTime || aligned.effectiveStartTime;
+                effectiveEndTime = effectiveEndTime || aligned.effectiveEndTime;
+            }
+        }
+
+        return {
+            startTime: start,
+            endTime: end,
+            effectiveStartTime,
+            effectiveEndTime,
         };
     }
 
     async getOverallStats(clientId, filters = {}) {
         try {
-            const { startTime, endTime } = this.parseTimeFilters(filters);
+            const { startTime, endTime, effectiveStartTime, effectiveEndTime } =
+                this.parseTimeFilters(filters);
+            const queryStart = effectiveStartTime || startTime;
+            const queryEnd = effectiveEndTime || endTime;
+
             const stats = await this.metricRepo.getOverallStats(
                 clientId,
-                startTime,
-                endTime,
+                queryStart,
+                queryEnd,
             );
 
             const totalHits = Number.parseInt(stats.total_hits, 10) || 0;
@@ -80,15 +135,17 @@ export class AnalyticService {
 
     async getTopEndpoints(clientId, options = {}) {
         try {
-            const { limit = 10, startTime, endTime } = options;
-            const { startTime: parsedStart, endTime: parsedEnd } =
-                this.parseTimeFilters({ startTime, endTime });
+            const { limit = 10 } = options;
+            const { startTime, endTime, effectiveStartTime, effectiveEndTime } =
+                this.parseTimeFilters(options);
+            const queryStart = effectiveStartTime || startTime;
+            const queryEnd = effectiveEndTime || endTime;
 
             const endpoints = await this.metricRepo.getTopEndPoints(
                 clientId,
                 limit,
-                parsedStart,
-                parsedEnd,
+                queryStart,
+                queryEnd,
             );
 
             return endpoints.map((endpoint) => {
@@ -118,21 +175,25 @@ export class AnalyticService {
         try {
             const {
                 serviceName,
-                startTime,
-                endTime,
                 endpoint,
                 limit = 1000,
             } = filters;
 
-            const { endTime: end_time, startTime: start_time } =
-                this.parseTimeFilters({ startTime, endTime });
+            const {
+                effectiveStartTime,
+                effectiveEndTime,
+                startTime: parsedStart,
+                endTime: parsedEnd,
+            } = this.parseTimeFilters(filters);
+            const queryStart = effectiveStartTime || parsedStart;
+            const queryEnd = effectiveEndTime || parsedEnd;
 
             const metrices = await this.metricRepo.getTimeSeriesMetrics({
                 clientId,
                 serviceName,
                 endpoint,
-                startTime: start_time,
-                endTime: end_time,
+                startTime: queryStart,
+                endTime: queryEnd,
                 limit,
             });
 

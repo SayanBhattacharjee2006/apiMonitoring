@@ -73,7 +73,7 @@ export const YieldDonutChart = ({
           Telemetry Ledger 02
         </span>
         <h3 className="font-serif text-lg font-medium text-burgundy">
-          Yield Integrity
+          Success vs Error
         </h3>
       </div>
 

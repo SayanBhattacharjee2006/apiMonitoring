@@ -144,8 +144,10 @@ export class AnalyticsController {
         const now = new Date();
         let finalStart;
         let finalEnd;
+        let isDefault24h = false;
 
         if (start === null && end === null) {
+            isDefault24h = true;
             finalEnd = now;
             finalStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         } else if (start !== null && end === null) {
@@ -159,9 +161,46 @@ export class AnalyticsController {
             finalEnd = end;
         }
 
+        // Compute effective UTC hourly boundaries
+        const floorToUtcHour = (d) => {
+            const copy = new Date(d);
+            copy.setUTCMinutes(0, 0, 0);
+            return copy;
+        };
+
+        const isExactUtcHour = (d) => {
+            return (
+                d.getUTCMinutes() === 0 &&
+                d.getUTCSeconds() === 0 &&
+                d.getUTCMilliseconds() === 0
+            );
+        };
+
+        let effectiveStartTime;
+        let effectiveEndTime;
+
+        if (isDefault24h) {
+            effectiveEndTime = floorToUtcHour(finalEnd);
+            effectiveStartTime = new Date(
+                effectiveEndTime.getTime() - 23 * 60 * 60 * 1000
+            );
+        } else {
+            effectiveStartTime = floorToUtcHour(finalStart);
+            if (isExactUtcHour(finalEnd) && finalEnd.getTime() > finalStart.getTime()) {
+                effectiveEndTime = new Date(finalEnd.getTime() - 60 * 60 * 1000);
+                if (effectiveEndTime.getTime() < effectiveStartTime.getTime()) {
+                    effectiveEndTime = effectiveStartTime;
+                }
+            } else {
+                effectiveEndTime = floorToUtcHour(finalEnd);
+            }
+        }
+
         return {
             startTime: finalStart,
             endTime: finalEnd,
+            effectiveStartTime,
+            effectiveEndTime,
         };
     }
 
@@ -186,8 +225,7 @@ export class AnalyticsController {
                 this.analyticSvc.getOverallStats(finalClientId, timeRange),
                 this.analyticSvc.getTopEndpoints(finalClientId, {
                     limit: 5,
-                    startTime: timeRange.startTime,
-                    endTime: timeRange.endTime,
+                    ...timeRange,
                 }),
                 this.analyticSvc.getTimeSeries(finalClientId, {
                     ...timeRange,

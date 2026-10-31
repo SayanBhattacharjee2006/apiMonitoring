@@ -447,3 +447,89 @@ Return { isDuplicate: false, eventId }             │    COMMIT & Return { isDu
 - **Unit Analytics & Idempotency Suites**: 48 tests across 5 files (`test/analytics/analytics.unit.test.js`, `test/processing/idempotency.unit.test.js`, `test/reliability/configSecurity.test.js`, `test/reliability/circuitBreaker.test.js`, `test/reliability/retryStrategy.test.js`), **100% PASS** (48 passed, 0 failed).
 - **Integration Tests Added**: Added 3 new test cases to `test/analytics/analytics.test.js` validating date boundary filtering, invalid range rejection, and empty period responses.
 - **Frontend Production Build**: `npm run build` executed cleanly in 17.61s with 0 errors (Vite production bundle generated in `frontend/dist/`).
+
+---
+
+## J. Hourly Boundary Inclusion, PostgreSQL Multi-Service Aggregation & Dashboard Metric Alignment
+
+### J.1 Problem Statement & Root Cause
+1. **Hourly Boundary Exclusion**:
+   - PostgreSQL stores metrics aggregated by discrete hourly buckets (`time_bucket TIMESTAMP`), representing the start of each UTC hour (e.g. `10:00:00`).
+   - The SQL filter condition `time_bucket >= startTime` previously used unaligned input timestamps (e.g., `10:30:00`).
+   - Consequently, for any custom window whose start fell inside an hour (e.g. `10:30–12:30`), the starting bucket (`10:00:00`) was excluded because `'10:00:00' >= '10:30:00'` evaluated to false.
+2. **UTC Bucketing Mismatch**:
+   - `ProcessorService.getTimeBucket()` previously called `.setMinutes(0, 0, 0)` in local server time rather than `.setUTCMinutes(0, 0, 0)`, creating potential discrepancies between ingest time and UTC query filters.
+3. **Dashboard Metric Labels & Hardcoded State**:
+   - `DashboardPage.jsx` contained placeholder labels: `Active Traces` (Total Requests), `Active Traced` and `Enforced` (Endpoints).
+   - `MonitoredEndpointsTable.jsx` displayed `active registered endpoints` rather than endpoints observed in the selected period.
+   - `YieldDonutChart.jsx` used the label `Yield Integrity`.
+   - `Sidebar.jsx` contained a hardcoded initial state `{ healthy: true, latency: 18 }` rather than an explicit `Checking` state displaying `Monitoring API: Available` or `Unavailable` once `/health` completed.
+
+### J.2 Architecture & Implementation Details
+
+#### 1. Effective UTC Hourly Boundary Normalization
+Implemented boundary alignment in [`AnalyticsController.normalizeTimeRange`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/analyticService/controller/analyticsController.js), [`AnalyticService.parseTimeFilters`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/analyticService/services/analyticService.js), and [`MetricsRepository._alignHourlyBoundaries`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/repository/MetricsRepository.js):
+- **Effective Start Time**:
+  - `floorToUtcHour(startTime)` floors to `UTCMinutes = 0, UTCSeconds = 0, UTCMilliseconds = 0`.
+  - For `10:30`, produces `10:00:00.000Z`, ensuring the partial boundary hour bucket containing the start timestamp is included.
+- **Effective End Time**:
+  - If `endTime` falls inside an hour (e.g. `12:30`), `floorToUtcHour(endTime)` produces `12:00:00.000Z`. In SQL, `time_bucket <= 12:00:00.000Z` includes bucket `12:00`.
+  - If `endTime` ends at an exact UTC hour boundary (e.g. `12:00:00.000Z`) and `endTime > startTime`, the range ends at 12:00:00 without entering the 12:00 hour; `effectiveEndTime` is set to `11:00:00.000Z`.
+  - For default 24h range, `effectiveEndTime = floorToUtcHour(now)` and `effectiveStartTime = effectiveEndTime - 23h`, producing exactly 24 discrete hourly buckets inclusive.
+- **Display Preservation**:
+  - Original requested timestamps (`startTime`, `endTime`) are preserved in `timeRange.start` and `timeRange.end` for display, while database queries receive effective boundary-aligned timestamps.
+
+#### 2. Deterministic UTC Bucketing in Ingestion
+Updated [`ProcessorService.getTimeBucket`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/service/ProcessorService.js):
+- Uses `date.setUTCMinutes(0, 0, 0)` for `"hour"`, `date.setUTCHours(0, 0, 0, 0)` for `"day"`, and `date.setUTCSeconds(0, 0)` for `"minute"`.
+
+#### 3. Frontend Label Corrections
+- [`DashboardPage.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/pages/DashboardPage.jsx):
+  - Total Requests KPI badge: `Active Traces` → `Requests Observed`.
+  - Endpoints KPI subtitle: `Active Traced` → `Observed Endpoints`.
+  - Endpoints KPI badge: `Enforced` → `Observed`.
+- [`MonitoredEndpointsTable.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/MonitoredEndpointsTable.jsx):
+  - `Showing {endpoints.length} active registered endpoints` → `Showing {endpoints.length} endpoints observed in selected period`.
+- [`YieldDonutChart.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/charts/YieldDonutChart.jsx):
+  - Header title: `Yield Integrity` → `Success vs Error`.
+- [`Sidebar.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/layout/Sidebar.jsx):
+  - Initial state: `{ healthy: null, checking: true, latency: null }`.
+  - On `/health` completion: displays `Monitoring API: Available` or `Monitoring API: Unavailable` with measured ping latency in milliseconds.
+- [`TimeFilterStrip.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/TimeFilterStrip.jsx):
+  - Added user explanation: *"Metrics are aggregated in hourly buckets. Partial boundary hours are represented by complete hourly buckets (e.g. 10:30–12:30 includes 10:00, 11:00, and 12:00 buckets)."*
+
+### J.3 Test Coverage & Verification
+
+#### 1. Six Boundary Semantics Test Scenarios ([`server/test/analytics/analytics.unit.test.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/test/analytics/analytics.unit.test.js))
+1. **Start and end inside the same hour** (`10:15–10:45`):
+   - Aligned to bucket `10:00:00.000Z` (1 bucket).
+2. **Start inside an hour, end at exact hour boundary** (`10:30–12:00`):
+   - Aligned to buckets `10:00:00.000Z` through `11:00:00.000Z` (2 buckets).
+3. **Start at exact hour boundary, end inside an hour** (`10:00–12:30`):
+   - Aligned to buckets `10:00:00.000Z` through `12:00:00.000Z` (3 buckets: 10:00, 11:00, 12:00).
+4. **Range spanning several hours** (`10:30–14:30`):
+   - Aligned to buckets `10:00:00.000Z` through `14:00:00.000Z` (5 complete buckets).
+5. **Default 24-hour range** (`null, null`):
+   - Spans exactly 24 discrete hourly buckets inclusive, ending with the current floored UTC hour.
+6. **Consistency across stats, top endpoints, and time series**:
+   - `AnalyticsController.getDashboard` passes identical `effectiveStartTime` and `effectiveEndTime` to `getOverallStats`, `getTopEndpoints`, and `getTimeSeries`. All queries filter on the exact same bucket range.
+
+#### 2. PostgreSQL Multi-Service Aggregation & Tenant Isolation Test
+- Verified in `analytics.unit.test.js` against a multi-service dataset (Tenant A with `auth-service` and `order-service` across multiple buckets; Tenant B with `billing-service`):
+  - **Boundary bucket inclusion**: Buckets 10:00, 11:00, and 12:00 included for `10:30–12:30`; bucket 13:00 excluded.
+  - **Sum of request totals**: `100 + 200 + 300 + 150 = 750` total hits.
+  - **Sum of error totals**: `5 + 15 + 0 + 10 = 30` error hits (error rate = 4.00%).
+  - **Mathematically weighted average latency**: `42000 / 750 = 56.00 ms`.
+  - **Tenant isolation**: Zero cross-tenant leakage between Tenant A (750 hits) and Tenant B (1000 hits).
+
+#### 3. Verification Commands & Outcomes
+- **Backend Test Suite**:
+  ```powershell
+  cd server; npx vitest run test/reliability test/processing/idempotency.unit.test.js test/analytics/analytics.unit.test.js
+  ```
+  - **Result**: **5 passed (5 suites), 55 passed (55 tests), 0 failed** in 12.94s.
+- **Frontend Production Build**:
+  ```powershell
+  cd frontend; npm run build
+  ```
+  - **Result**: Built successfully in 17.34s (`vite v5.4.21`, 2477 modules transformed into `frontend/dist/`).

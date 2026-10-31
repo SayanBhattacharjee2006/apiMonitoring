@@ -60,7 +60,7 @@ export const MonitoredEndpointsTable = ({
         </div>
 
         <span className="text-xs text-ink-secondary font-mono">
-          Showing {endpoints.length} active registered endpoints
+          Showing {endpoints.length} endpoints observed in selected period
         </span>
       </div>
 

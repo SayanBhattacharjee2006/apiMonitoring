@@ -141,7 +141,7 @@ export const TimeFilterStrip = ({
               Select Custom Window
             </h4>
             <p className="text-[11px] text-ink-secondary">
-              Metrics are aggregated in hourly buckets. Boundary buckets containing your start and end timestamps are included.
+              Metrics are aggregated in hourly buckets. Partial boundary hours are represented by complete hourly buckets (e.g. 10:30–12:30 includes 10:00, 11:00, and 12:00 buckets).
             </p>
 
             <div className="flex flex-col gap-3 text-xs">

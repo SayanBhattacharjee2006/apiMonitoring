@@ -15,16 +15,16 @@ export class ProcessorService {
 
         switch (interval) {
             case "hour":
-                date.setMinutes(0, 0, 0);
+                date.setUTCMinutes(0, 0, 0);
                 break;
             case "day":
-                date.setHours(0, 0, 0, 0);
+                date.setUTCHours(0, 0, 0, 0);
                 break;
             case "minute":
-                date.setSeconds(0, 0);
+                date.setUTCSeconds(0, 0);
                 break;
             default:
-                date.setMinutes(0, 0, 0);
+                date.setUTCMinutes(0, 0, 0);
         }
 
         return date;

@@ -238,7 +238,7 @@ export const DashboardPage = () => {
           title="Total Requests"
           value={stats ? Number(stats.totalHits).toLocaleString() : '—'}
           subtitle="Selected window"
-          badgeText="Active Traces"
+          badgeText="Requests Observed"
           badgeType="neutral"
           icon={Activity}
           iconColor="text-burgundy"
@@ -303,8 +303,8 @@ export const DashboardPage = () => {
         <KpiCard
           title="Endpoints"
           value={stats ? stats.uniqueEndpoints : '—'}
-          subtitle="Active Traced"
-          badgeText="Enforced"
+          subtitle="Observed Endpoints"
+          badgeText="Observed"
           badgeType="neutral"
           icon={Network}
           iconColor="text-secondary"

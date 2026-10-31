@@ -150,6 +150,37 @@ export class MetricsRepository extends BaseRepository {
         }
     }
 
+    _alignHourlyBoundaries(startTime, endTime) {
+        let alignedStart = startTime;
+        let alignedEnd = endTime;
+
+        if (startTime) {
+            const s = new Date(startTime);
+            if (!Number.isNaN(s.getTime())) {
+                s.setUTCMinutes(0, 0, 0);
+                alignedStart = s;
+            }
+        }
+
+        if (endTime) {
+            const e = new Date(endTime);
+            if (!Number.isNaN(e.getTime())) {
+                // If endTime falls inside an hour (has minutes, seconds, or milliseconds),
+                // floor to the hour start so <= matches that partial boundary hour bucket.
+                if (
+                    e.getUTCMinutes() > 0 ||
+                    e.getUTCSeconds() > 0 ||
+                    e.getUTCMilliseconds() > 0
+                ) {
+                    e.setUTCMinutes(0, 0, 0);
+                }
+                alignedEnd = e;
+            }
+        }
+
+        return { alignedStart, alignedEnd };
+    }
+
     async getMetrices(filters = {}) {
         try {
             const {
@@ -163,6 +194,10 @@ export class MetricsRepository extends BaseRepository {
             } = filters;
             const safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
             const safeOffset = Math.max(offset, 0);
+            const { alignedStart, alignedEnd } = this._alignHourlyBoundaries(
+                startTime,
+                endTime,
+            );
 
             let query = `
             SELECT
@@ -197,14 +232,14 @@ export class MetricsRepository extends BaseRepository {
                 params.push(endpoint);
             }
 
-            if (startTime) {
+            if (alignedStart) {
                 whereConditions.push(`time_bucket >= $${paramIndex++}`);
-                params.push(startTime);
+                params.push(alignedStart);
             }
 
-            if (endTime) {
+            if (alignedEnd) {
                 whereConditions.push(`time_bucket <= $${paramIndex++}`);
-                params.push(endTime);
+                params.push(alignedEnd);
             }
 
             if (whereConditions.length > 0) {
@@ -278,14 +313,19 @@ export class MetricsRepository extends BaseRepository {
                 params.push(endpoint);
             }
 
-            if (startTime) {
+            const { alignedStart, alignedEnd } = this._alignHourlyBoundaries(
+                startTime,
+                endTime,
+            );
+
+            if (alignedStart) {
                 whereConditions.push(`time_bucket >= $${paramIndex++}`);
-                params.push(startTime);
+                params.push(alignedStart);
             }
 
-            if (endTime) {
+            if (alignedEnd) {
                 whereConditions.push(`time_bucket <= $${paramIndex++}`);
-                params.push(endTime);
+                params.push(alignedEnd);
             }
 
             if (whereConditions.length > 0) {
@@ -331,14 +371,19 @@ export class MetricsRepository extends BaseRepository {
                 params.push(clientId);
             }
 
-            if (startTime) {
+            const { alignedStart, alignedEnd } = this._alignHourlyBoundaries(
+                startTime,
+                endTime,
+            );
+
+            if (alignedStart) {
                 whereConditions.push(`time_bucket >= $${paramIndex++}`);
-                params.push(startTime);
+                params.push(alignedStart);
             }
 
-            if (endTime) {
+            if (alignedEnd) {
                 whereConditions.push(`time_bucket <= $${paramIndex++}`);
-                params.push(endTime);
+                params.push(alignedEnd);
             }
 
             if (whereConditions.length > 0) {
@@ -382,14 +427,19 @@ export class MetricsRepository extends BaseRepository {
                 params.push(clientId);
             }
 
-            if (startTime) {
+            const { alignedStart, alignedEnd } = this._alignHourlyBoundaries(
+                startTime,
+                endTime,
+            );
+
+            if (alignedStart) {
                 whereConditions.push(`time_bucket >= $${paramIndex++}`);
-                params.push(startTime);
+                params.push(alignedStart);
             }
 
-            if (endTime) {
+            if (alignedEnd) {
                 whereConditions.push(`time_bucket <= $${paramIndex++}`);
-                params.push(endTime);
+                params.push(alignedEnd);
             }
 
             if (whereConditions.length > 0) {

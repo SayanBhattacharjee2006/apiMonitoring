@@ -239,5 +239,26 @@ describe("Phase 13: Analytics & Cross-Tenant Data Isolation (GET /api/analytics/
             expect(topEndpoints).toEqual([]);
             expect(recentTimeSeries).toEqual([]);
         });
+
+        it("includes partial boundary hour bucket when startTime falls inside the hour", async () => {
+            // When startTime falls inside the hour, boundary bucket is included
+            const now = new Date();
+            // Start inside the current hour (e.g. at minute 30)
+            const partialStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), 30, 0, 0));
+            const end = new Date(now.getTime() + 60 * 60 * 1000);
+
+            const res = await request(app)
+                .get(`/api/analytics/dashboard?startTime=${partialStart.toISOString()}&endTime=${end.toISOString()}`)
+                .set("Cookie", clientAAdmin.cookie);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            const { stats } = res.body.data;
+
+            // Hits ingested for Client A in this hour are included despite partial start timestamp
+            expect(stats.totalHits).toBe(2);
+            expect(stats.errorHits).toBe(1);
+            expect(stats.successHits).toBe(1);
+        });
     });
 });

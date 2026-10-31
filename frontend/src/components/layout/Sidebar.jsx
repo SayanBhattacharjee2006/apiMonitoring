@@ -18,7 +18,7 @@ import authService from '../../services/authService';
 export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
   const { user, role, logout } = useAuthStore();
   const navigate = useNavigate();
-  const [healthStatus, setHealthStatus] = useState({ healthy: true, latency: 18 });
+  const [healthStatus, setHealthStatus] = useState({ healthy: null, checking: true, latency: null });
 
   // Periodically check system /health
   useEffect(() => {
@@ -28,11 +28,11 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
       try {
         await authService.getHealth();
         if (isMounted) {
-          setHealthStatus({ healthy: true, latency: Date.now() - start });
+          setHealthStatus({ healthy: true, checking: false, latency: Date.now() - start });
         }
       } catch (err) {
         if (isMounted) {
-          setHealthStatus({ healthy: false, latency: Date.now() - start });
+          setHealthStatus({ healthy: false, checking: false, latency: Date.now() - start });
         }
       }
     };
@@ -200,17 +200,23 @@ export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
           <div className="flex items-center gap-1.5">
             <span
               className={`w-2 h-2 rounded-full ${
-                healthStatus.healthy
+                healthStatus.checking
+                  ? 'bg-ink-secondary/60 animate-pulse'
+                  : healthStatus.healthy
                   ? 'bg-tertiary-container animate-pulse'
                   : 'bg-error animate-ping'
               }`}
             />
             <span className="text-[11px] uppercase font-bold text-tertiary-container tracking-wider">
-              {healthStatus.healthy ? 'System Operational' : 'Degraded Health'}
+              {healthStatus.checking
+                ? 'Monitoring API: Checking...'
+                : healthStatus.healthy
+                ? 'Monitoring API: Available'
+                : 'Monitoring API: Unavailable'}
             </span>
           </div>
           <span className="text-[11px] font-mono text-ink-secondary">
-            {healthStatus.latency}ms
+            {healthStatus.latency !== null ? `${healthStatus.latency}ms` : '—'}
           </span>
         </div>
 
