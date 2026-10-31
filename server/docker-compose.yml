@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     container_name: api-monitoring-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-api_monitoring}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
       # Bound to localhost (127.0.0.1) by default to prevent exposure on untrusted network interfaces
@@ -17,7 +17,7 @@ services:
       - api-monitoring-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-api_monitoring}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?POSTGRES_USER is required} -d ${POSTGRES_DB:?POSTGRES_DB is required}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,9 +39,9 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: api-monitoring-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-api_user}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-secure_password}
-      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-api_monitoring}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:?RABBITMQ_VHOST is required}
     ports:
       # Bound to localhost (127.0.0.1) by default to protect broker and management UI
       - "${RABBITMQ_HOST_BIND:-127.0.0.1}:5672:5672" # AMQP port
@@ -62,8 +62,8 @@ services:
     image: dpage/pgadmin4:7
     container_name: api-monitoring-pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin_secure_password}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:?PGADMIN_EMAIL is required}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD is required}
     ports:
       # Bound to localhost (127.0.0.1) by default to prevent public web UI exposure
       - "${PGADMIN_HOST_BIND:-127.0.0.1}:8080:80"
@@ -90,11 +90,11 @@ services:
       # PostgreSQL (Docker container)
       PG_HOST: postgres
       PG_PORT: 5432
-      PG_DATABASE: ${POSTGRES_DB:-api_monitoring}
-      PG_USER: ${POSTGRES_USER:-postgres}
-      PG_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PG_DATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      PG_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PG_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       # RabbitMQ (Docker container)
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-api_user}:${RABBITMQ_PASSWORD:-secure_password}@rabbitmq:5672/${RABBITMQ_VHOST:-api_monitoring}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?RABBITMQ_USER is required}:${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}@rabbitmq:5672/${RABBITMQ_VHOST:?RABBITMQ_VHOST is required}
       RABBITMQ_QUEUE: api_hits
       # Security (Validated strictly for API process role)
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
@@ -135,11 +135,11 @@ services:
       # PostgreSQL (Docker container)
       PG_HOST: postgres
       PG_PORT: 5432
-      PG_DATABASE: ${POSTGRES_DB:-api_monitoring}
-      PG_USER: ${POSTGRES_USER:-postgres}
-      PG_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PG_DATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      PG_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PG_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       # RabbitMQ (Docker container)
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-api_user}:${RABBITMQ_PASSWORD:-secure_password}@rabbitmq:5672/${RABBITMQ_VHOST:-api_monitoring}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?RABBITMQ_USER is required}:${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}@rabbitmq:5672/${RABBITMQ_VHOST:?RABBITMQ_VHOST is required}
       RABBITMQ_QUEUE: api_hits
     volumes:
       - ./logs:/app/logs

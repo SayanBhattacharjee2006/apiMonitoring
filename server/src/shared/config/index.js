@@ -23,11 +23,16 @@ export const DISALLOWED_PRODUCTION_SECRETS = new Set([
     "changeme",
     "password",
     "admin",
+    "your_production_cryptographically_secure_jwt_secret_min_32_characters",
+    "your_production_super_admin_bootstrap_secret_min_16_chars",
+    "replace_me_with_a_cryptographically_secure_jwt_secret_min_32_chars",
+    "replace_me_with_a_secure_super_admin_bootstrap_secret_min_16_chars",
 ]);
 
 /**
  * Validates whether a secret value is unsafe or unacceptable for production use.
- * Rejects missing values, values below minLength, known test/dev strings, and dev/test markers.
+ * Rejects missing values, values below minLength, known test/dev strings,
+ * placeholder prefixes (your_, replace_me, example_), and dev/test markers.
  *
  * @param {string} val - The secret value to validate.
  * @param {number} minLength - Minimum required character length.
@@ -39,16 +44,34 @@ export function isInvalidProductionSecret(val, minLength = 32) {
     if (trimmed.length < minLength) return true;
     const lower = trimmed.toLowerCase();
     if (DISALLOWED_PRODUCTION_SECRETS.has(lower)) return true;
-    // Reject any development or test markers in production secrets
+
+    // Reject obvious placeholder prefixes
+    if (
+        lower.startsWith("your_") ||
+        lower.startsWith("replace_me") ||
+        lower.startsWith("example_") ||
+        lower.startsWith("sample_") ||
+        lower.startsWith("placeholder") ||
+        lower.startsWith("test_") ||
+        lower.startsWith("dev_")
+    ) {
+        return true;
+    }
+
+    // Reject development, test, example, and placeholder markers anywhere in the secret
     if (
         lower.includes("test") ||
         lower.includes("dev") ||
         lower.includes("placeholder") ||
+        lower.includes("example") ||
         lower.includes("default") ||
-        lower.includes("changeme")
+        lower.includes("changeme") ||
+        lower.includes("replace_me") ||
+        lower.includes("sample")
     ) {
         return true;
     }
+
     return false;
 }
 

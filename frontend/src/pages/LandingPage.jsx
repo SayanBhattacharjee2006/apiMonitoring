@@ -196,26 +196,43 @@ response = requests.post(
 
             {/* EDITORIAL CONSOLE PREVIEW */}
             <div className="w-full bg-card-surface rounded-xl shadow-xl p-6 lg:p-8 flex flex-col gap-6 border border-hairline/80">
+              {/* Prominent Sample Data Disclaimer Banner */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-amber-500/10 border border-amber-500/25 rounded-lg text-xs">
+                <div className="flex items-center gap-2 text-ink-primary font-medium">
+                  <BarChart3 className="w-4 h-4 text-burgundy shrink-0" />
+                  <span>
+                    <strong className="font-semibold text-burgundy">Illustrative Sample Preview:</strong> The metrics and charts below demonstrate dashboard capabilities using sample telemetry. Live analytics require workspace login.
+                  </span>
+                </div>
+                <Link
+                  to={isAuthenticated ? "/dashboard" : "/login"}
+                  className="font-bold text-burgundy hover:text-burgundy-dark transition-colors inline-flex items-center gap-1 text-[11px] uppercase tracking-wider shrink-0"
+                >
+                  {isAuthenticated ? "Open Live Dashboard" : "Sign In to Access Dashboard"}
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
               {/* Header bar of preview */}
               <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-hairline/50">
                 <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full bg-[#154620] shadow-sm animate-pulse" />
+                  <span className="w-3 h-3 rounded-full bg-burgundy/80 shadow-sm" />
                   <span className="font-serif text-lg font-semibold text-ink-primary">
-                    Production Gateway Telemetry Ledger
+                    Dashboard Interface (Simulated Preview)
                   </span>
                   <span className="bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider">
-                    Cluster::us-east-1a
+                    Sample View
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs text-ink-secondary">
                   <span>
-                    Sync: <strong className="text-ink-primary font-semibold">Real-Time (50ms tick)</strong>
+                    Data Source: <strong className="text-ink-primary font-semibold">Simulated Sample Rollup</strong>
                   </span>
                   <span>
-                    Tenant: <strong className="text-ink-primary font-semibold">T-9821_PROD</strong>
+                    Tenant Scope: <strong className="text-ink-primary font-semibold">Sample Organization</strong>
                   </span>
                   <span className="bg-surface-container px-2.5 py-1 rounded text-ink-primary font-semibold text-[11px] border border-hairline/40">
-                    Zero Drop Guarantee
+                    Asynchronous Event Queue
                   </span>
                 </div>
               </div>
@@ -224,33 +241,32 @@ response = requests.post(
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-surface-container-low p-4 rounded-lg flex flex-col gap-1 border border-hairline/40">
                   <span className="text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
-                    Request Volume
+                    Simulated Volume
                   </span>
                   <div className="flex items-baseline gap-2">
                     <span className="font-serif text-2xl sm:text-3xl font-bold text-burgundy tabular-nums">
-                      1,482,904
+                      1.2M
                     </span>
-                    <span className="text-[#154620] text-xs font-bold flex items-center">
-                      <TrendingUp className="w-3.5 h-3.5 inline mr-0.5" />
-                      12.4%
+                    <span className="text-secondary text-xs font-semibold">
+                      sample rollup
                     </span>
                   </div>
-                  <span className="text-xs text-ink-secondary">Hits logged today</span>
+                  <span className="text-xs text-ink-secondary">Illustrative aggregate hits</span>
                 </div>
 
                 <div className="bg-surface-container-low p-4 rounded-lg flex flex-col gap-1 border border-hairline/40">
                   <span className="text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
-                    Yield Success Rate
+                    Sample Success Rate
                   </span>
                   <div className="flex items-baseline gap-2">
                     <span className="font-serif text-2xl sm:text-3xl font-bold text-[#154620] tabular-nums">
-                      99.84%
+                      99.8%
                     </span>
                     <span className="bg-[#baf0bb] text-[#002108] text-[10px] px-1.5 py-0.5 rounded font-bold">
                       200 OK
                     </span>
                   </div>
-                  <span className="text-xs text-ink-secondary">SLA threshold: 99.50%</span>
+                  <span className="text-xs text-ink-secondary">Computed from sample data</span>
                 </div>
 
                 <div className="bg-surface-container-low p-4 rounded-lg flex flex-col gap-1 border border-hairline/40">
@@ -268,21 +284,21 @@ response = requests.post(
 
                 <div className="bg-surface-container-low p-4 rounded-lg flex flex-col gap-1 border border-hairline/40">
                   <span className="text-[11px] font-bold text-ink-secondary uppercase tracking-wider">
-                    Ingest Queue Backlog
+                    Ingest Architecture
                   </span>
                   <div className="flex items-baseline gap-2">
                     <span className="font-serif text-2xl sm:text-3xl font-bold text-secondary tabular-nums">
-                      0.00 ms
+                      Async
                     </span>
                     <span className="bg-secondary-fixed text-on-secondary-fixed text-[10px] px-1.5 py-0.5 rounded font-bold">
-                      DRAINED
+                      BUFFERED
                     </span>
                   </div>
-                  <span className="text-xs text-ink-secondary">RabbitMQ stream workers: 32</span>
+                  <span className="text-xs text-ink-secondary">Decoupled via RabbitMQ queue</span>
                 </div>
               </div>
 
-              {/* Sub-Second Latency Spectrum & Live Incoming Trace Pulses */}
+              {/* Sub-Second Latency Spectrum & Sample Incoming Trace Stream */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
                 {/* SVG Latency Sparkline */}
                 <div className="lg:col-span-2 bg-surface-container-low p-5 rounded-lg flex flex-col gap-3 border border-hairline/40">
@@ -290,11 +306,11 @@ response = requests.post(
                     <div className="flex items-center gap-2">
                       <Activity className="w-4 h-4 text-burgundy" />
                       <span className="font-serif text-sm font-semibold text-ink-primary">
-                        Endpoint Latency Spectrum
+                        Endpoint Latency Spectrum (Illustrative)
                       </span>
                     </div>
                     <span className="text-xs text-ink-secondary font-medium">
-                      Sampling: 100% of /api/hit traffic
+                      Sample hourly time-bucket trend
                     </span>
                   </div>
 
@@ -352,7 +368,7 @@ response = requests.post(
                         stroke="#642A3A"
                         strokeWidth="2.5"
                       />
-                      {/* Anomaly highlight node at x=480, y=42 */}
+                      {/* Sample highlight node at x=480, y=42 */}
                       <circle cx="480" cy="42" fill="#642A3A" r="5" />
                       <circle
                         cx="480"
@@ -362,7 +378,6 @@ response = requests.post(
                         stroke="#642A3A"
                         strokeOpacity="0.4"
                         strokeWidth="2"
-                        className="animate-ping"
                       />
                     </svg>
                   </div>
@@ -371,21 +386,21 @@ response = requests.post(
                     <span>T - 60 minutes</span>
                     <span className="inline-flex items-center gap-1.5 text-burgundy font-semibold">
                       <span className="w-1.5 h-1.5 rounded-full bg-burgundy" />
-                      Mean Latency Spike (48.2ms burst recorded)
+                      Illustrative Hourly Rollup
                     </span>
-                    <span>Present Moment</span>
+                    <span>Present Window</span>
                   </div>
                 </div>
 
-                {/* Live Trace Stream Box */}
+                {/* Sample Trace Stream Box */}
                 <div className="bg-surface-container-low p-5 rounded-lg flex flex-col gap-3 border border-hairline/40">
                   <div className="flex items-center justify-between">
                     <span className="font-serif text-sm font-semibold text-ink-primary">
-                      Live Trace Stream
+                      Sample Ingestion Stream
                     </span>
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-[#154620]">
-                      <span className="w-2 h-2 rounded-full bg-[#154620] animate-ping" />
-                      INGESTING
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-secondary">
+                      <span className="w-2 h-2 rounded-full bg-secondary" />
+                      SIMULATED
                     </span>
                   </div>
 
@@ -440,8 +455,8 @@ response = requests.post(
                   </div>
 
                   <div className="mt-auto pt-2 flex items-center justify-between text-xs text-ink-secondary border-t border-hairline/40">
-                    <span>Scoped API Key Verified</span>
-                    <span className="text-burgundy font-semibold">Tenant Data Isolated</span>
+                    <span>Scoped API Key Auth</span>
+                    <span className="text-burgundy font-semibold">PostgreSQL Aggregates</span>
                   </div>
                 </div>
               </div>
@@ -449,36 +464,36 @@ response = requests.post(
           </div>
         </section>
 
-        {/* 3. METRIC COUNTERS RIBBON */}
+        {/* 3. CAPABILITY OVERVIEW RIBBON */}
         <section className="w-full bg-surface-container py-12 px-6 lg:px-12 border-y border-hairline/60">
           <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="flex flex-col gap-1">
               <span className="font-serif text-3xl sm:text-4xl lg:text-5xl text-burgundy font-bold leading-tight tabular-nums">
-                1.48M+
+                Async
               </span>
-              <span className="text-sm font-semibold text-ink-primary">Daily Hits Processed</span>
-              <span className="text-xs text-ink-secondary">Zero throttled trace requests</span>
+              <span className="text-sm font-semibold text-ink-primary">Decoupled Ingestion</span>
+              <span className="text-xs text-ink-secondary">RabbitMQ event buffering</span>
             </div>
 
             <div className="flex flex-col gap-1">
               <span className="font-serif text-3xl sm:text-4xl lg:text-5xl text-[#154620] font-bold leading-tight tabular-nums">
-                &lt;2ms
+                SQL
               </span>
-              <span className="text-sm font-semibold text-ink-primary">Ingestion Overhead</span>
-              <span className="text-xs text-ink-secondary">Validated at load balancer layer</span>
+              <span className="text-sm font-semibold text-ink-primary">Partitioned Analytics</span>
+              <span className="text-xs text-ink-secondary">Materialized endpoint metrics</span>
             </div>
 
             <div className="flex flex-col gap-1">
               <span className="font-serif text-3xl sm:text-4xl lg:text-5xl text-secondary font-bold leading-tight tabular-nums">
-                99.99%
+                RBAC
               </span>
-              <span className="text-sm font-semibold text-ink-primary">Pipeline Availability</span>
-              <span className="text-xs text-ink-secondary">High-availability worker pool</span>
+              <span className="text-sm font-semibold text-ink-primary">Role-Based Access</span>
+              <span className="text-xs text-ink-secondary">Super Admin &amp; Tenant boundaries</span>
             </div>
 
             <div className="flex flex-col gap-1">
               <span className="font-serif text-3xl sm:text-4xl lg:text-5xl text-burgundy font-bold leading-tight tabular-nums">
-                100%
+                Isolated
               </span>
               <span className="text-sm font-semibold text-ink-primary">Tenant Data Isolation</span>
               <span className="text-xs text-ink-secondary">Strict database-level partitions</span>
