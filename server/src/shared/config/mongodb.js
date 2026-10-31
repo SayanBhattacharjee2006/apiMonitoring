@@ -3,14 +3,14 @@ import config from "./index.js";
 import logger from "./logger.js";
 
 /**
- * MongoDB datatbase manager/connector
+ * MongoDB database manager/connector
  * @module mongodb
  * @requires module:config
  * @requires module:logger
  */
 
-class MongoConnection{
-    constructor(){
+class MongoConnection {
+    constructor() {
         this.connection = null;
     }
 
@@ -18,15 +18,17 @@ class MongoConnection{
      * Connect to MongoDB
      * @returns {Promise<mongoose.Connection>}
      */
-    async connect(){
-        try{
-            if(this.connection){
+    async connect() {
+        try {
+            if (this.connection) {
                 logger.info("Already connected to MongoDB");
                 return this.connection;
             }
 
-            await mongoose.connect(config.mongo.uri,{
-                dbName: config.mongo.dbName
+            await mongoose.connect(config.mongo.uri, {
+                dbName: config.mongo.dbName,
+                serverSelectionTimeoutMS:
+                    process.env.NODE_ENV === "test" ? 2000 : 30000,
             });
 
             this.connection = mongoose.connection;
@@ -42,35 +44,33 @@ class MongoConnection{
             });
 
             return this.connection;
-        } catch(error){
+        } catch (error) {
             logger.error("Failed to connect to MongoDB:", error);
             throw error;
         }
     }
 
-    /**
-     * Disconnect from MongoDB
-     */
-    async disconnect(){
-        try{
-            if(this.connection){
+    getConnection() {
+        return this.connection;
+    }
+
+    async disconnect() {
+        try {
+            if (this.connection) {
                 await mongoose.disconnect();
                 this.connection = null;
                 logger.info("Disconnected from MongoDB");
             }
-        } catch(error){
-            logger.error("Failed to disconnect from MongoDB:", error);
+        } catch (error) {
+            logger.error("Error disconnecting from MongoDB:", error);
             throw error;
         }
     }
 
-    /**
-     * Get the active mongo connection
-     * @returns {mongoose.Connection}
-     */
-    getConnection(){
-        return this.connection;
+    isConnected() {
+        return mongoose.connection.readyState === 1;
     }
 }
 
-export default new MongoConnection();
+const mongodb = new MongoConnection();
+export default mongodb;

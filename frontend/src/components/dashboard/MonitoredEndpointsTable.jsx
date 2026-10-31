@@ -81,16 +81,9 @@ export const MonitoredEndpointsTable = ({
           <tbody className="divide-y divide-hairline/40 text-xs text-ink-primary">
             {endpoints.map((ep, idx) => {
               const errRate = Number(ep.errorRate) || 0;
-              let statusType = 'healthy';
-              let statusLabel = 'Healthy';
-
-              if (errRate > 5) {
-                statusType = 'error';
-                statusLabel = 'Elevated 5xx';
-              } else if (errRate > 1.5) {
-                statusType = 'degraded';
-                statusLabel = 'Degraded';
-              }
+              const errHits = Number(ep.errorHits) || 0;
+              const statusType = errHits > 0 ? 'warning' : 'healthy';
+              const statusLabel = errHits > 0 ? 'Errors observed' : 'No errors observed';
 
               return (
                 <tr
@@ -114,7 +107,7 @@ export const MonitoredEndpointsTable = ({
                   </td>
                   <td
                     className={`py-3 px-4 text-right font-semibold tabular-nums ${
-                      errRate > 1.5 ? 'text-burgundy' : 'text-[#3B5738]'
+                      errRate > 0 ? 'text-burgundy' : 'text-[#3B5738]'
                     }`}
                   >
                     {errRate.toFixed(2)}%
@@ -133,4 +126,3 @@ export const MonitoredEndpointsTable = ({
 };
 
 export default MonitoredEndpointsTable;
-

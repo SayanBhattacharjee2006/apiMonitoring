@@ -6,7 +6,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceLine,
   ResponsiveContainer,
 } from 'recharts';
 import ChartTooltip from './ChartTooltip';
@@ -34,7 +33,7 @@ export const LatencyTrendChart = ({ rawTimeSeries = [], isLoading = false, error
       if (!bucketMap.has(timeKey)) {
         bucketMap.set(timeKey, {
           timestamp: timeKey,
-          label: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          dateObj,
           sumLatencyHits: latency * hits,
           totalHits: hits,
         });
@@ -45,27 +44,56 @@ export const LatencyTrendChart = ({ rawTimeSeries = [], isLoading = false, error
       }
     });
 
+    const sortedBuckets = Array.from(bucketMap.values()).sort(
+      (a, b) => a.timestamp - b.timestamp
+    );
+
+    const minTime = sortedBuckets[0]?.timestamp || 0;
+    const maxTime = sortedBuckets[sortedBuckets.length - 1]?.timestamp || 0;
+    const spanMs = maxTime - minTime;
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS = 7 * ONE_DAY;
+
     let peak = 0;
     let totalAllHits = 0;
     let totalAllLatencyHits = 0;
 
-    const data = Array.from(bucketMap.values())
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .map((b) => {
-        const weightedAvg = b.totalHits > 0 ? Number((b.sumLatencyHits / b.totalHits).toFixed(2)) : 0;
-        if (weightedAvg > peak) peak = weightedAvg;
-        totalAllHits += b.totalHits;
-        totalAllLatencyHits += b.sumLatencyHits;
+    const data = sortedBuckets.map((b) => {
+      const weightedAvg =
+        b.totalHits > 0 ? Number((b.sumLatencyHits / b.totalHits).toFixed(2)) : 0;
+      if (weightedAvg > peak) peak = weightedAvg;
+      totalAllHits += b.totalHits;
+      totalAllLatencyHits += b.sumLatencyHits;
 
-        return {
-          timestamp: b.timestamp,
-          label: b.label,
-          avgLatency: weightedAvg,
-          totalHits: b.totalHits,
-        };
-      });
+      let label;
+      if (spanMs <= ONE_DAY) {
+        label = b.dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else if (spanMs <= SEVEN_DAYS) {
+        const month = b.dateObj.toLocaleDateString([], { month: 'short' });
+        const day = b.dateObj.getDate();
+        const time = b.dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        label = `${month} ${day}, ${time}`;
+      } else {
+        label = b.dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
 
-    const overall = totalAllHits > 0 ? Number((totalAllLatencyHits / totalAllHits).toFixed(1)) : 0;
+      return {
+        timestamp: b.timestamp,
+        label,
+        fullDate: b.dateObj.toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        avgLatency: weightedAvg,
+        totalHits: b.totalHits,
+      };
+    });
+
+    const overall =
+      totalAllHits > 0 ? Number((totalAllLatencyHits / totalAllHits).toFixed(1)) : 0;
 
     return { chartData: data, peakLatency: peak, overallAvg: overall };
   }, [rawTimeSeries]);
@@ -165,18 +193,6 @@ export const LatencyTrendChart = ({ rawTimeSeries = [], isLoading = false, error
                 />
               }
             />
-            {/* SLA Reference threshold: 50ms */}
-            <ReferenceLine
-              y={50}
-              stroke="#847376"
-              strokeDasharray="4 4"
-              label={{
-                value: 'SLA Target (50ms)',
-                position: 'top',
-                fill: '#847376',
-                fontSize: 10,
-              }}
-            />
             <Area
               type="monotone"
               dataKey="avgLatency"
@@ -193,11 +209,10 @@ export const LatencyTrendChart = ({ rawTimeSeries = [], isLoading = false, error
 
       <div className="flex justify-between items-center text-[10px] uppercase font-bold text-ink-secondary pt-3 border-t border-hairline/40 mt-2">
         <span>Formula: sum(latency × hits) / sum(hits)</span>
-        <span>Target: &lt; 50ms</span>
+        <span>Resolution: 1-hour intervals</span>
       </div>
     </div>
   );
 };
 
 export default LatencyTrendChart;
-

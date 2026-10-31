@@ -193,5 +193,51 @@ describe("Phase 13: Analytics & Cross-Tenant Data Isolation (GET /api/analytics/
             expect(res.status).toBe(401);
             expect(res.body.success).toBe(false);
         });
+        it("rejects invalid date range (startTime > endTime) with 400", async () => {
+            const res = await request(app)
+                .get("/api/analytics/dashboard?startTime=2026-10-31T15:00:00Z&endTime=2026-10-31T10:00:00Z")
+                .set("Cookie", clientAAdmin.cookie);
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.message).toMatch(/Invalid time range/);
+        });
+
+        it("filters dashboard sections consistently within an active time window", async () => {
+            const now = new Date();
+            const start = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
+            const end = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
+
+            const res = await request(app)
+                .get(`/api/analytics/dashboard?startTime=${start}&endTime=${end}`)
+                .set("Cookie", clientAAdmin.cookie);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            const { stats, topEndpoints, recentTimeSeries } = res.body.data;
+
+            expect(stats.totalHits).toBe(2);
+            expect(topEndpoints.length).toBeGreaterThan(0);
+            expect(recentTimeSeries.length).toBeGreaterThan(0);
+        });
+
+        it("returns empty structure when time window has no data", async () => {
+            const pastStart = new Date("2020-01-01T00:00:00Z").toISOString();
+            const pastEnd = new Date("2020-01-02T00:00:00Z").toISOString();
+
+            const res = await request(app)
+                .get(`/api/analytics/dashboard?startTime=${pastStart}&endTime=${pastEnd}`)
+                .set("Cookie", clientAAdmin.cookie);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            const { stats, topEndpoints, recentTimeSeries } = res.body.data;
+
+            expect(stats.totalHits).toBe(0);
+            expect(stats.errorHits).toBe(0);
+            expect(stats.successHits).toBe(0);
+            expect(topEndpoints).toEqual([]);
+            expect(recentTimeSeries).toEqual([]);
+        });
     });
 });

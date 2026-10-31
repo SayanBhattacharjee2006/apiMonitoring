@@ -7,6 +7,44 @@ export class AnalyticService {
         this.metricRepo = metricRepo;
     }
 
+    parseTimeFilters(filters = {}) {
+        let { startTime, endTime } = filters;
+
+        if (startTime instanceof Date && endTime instanceof Date) {
+            return { startTime, endTime };
+        }
+
+        const now = new Date();
+
+        if (!startTime && !endTime) {
+            return {
+                startTime: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+                endTime: now,
+            };
+        }
+
+        if (startTime && !endTime) {
+            const start = new Date(startTime);
+            return {
+                startTime: start,
+                endTime: now,
+            };
+        }
+
+        if (!startTime && endTime) {
+            const end = new Date(endTime);
+            return {
+                startTime: new Date(end.getTime() - 24 * 60 * 60 * 1000),
+                endTime: end,
+            };
+        }
+
+        return {
+            startTime: new Date(startTime),
+            endTime: new Date(endTime),
+        };
+    }
+
     async getOverallStats(clientId, filters = {}) {
         try {
             const { startTime, endTime } = this.parseTimeFilters(filters);
@@ -19,15 +57,16 @@ export class AnalyticService {
             const totalHits = Number.parseInt(stats.total_hits, 10) || 0;
             const errorHits = Number.parseInt(stats.error_hits, 10) || 0;
             const errorRate = totalHits > 0 ? (errorHits / totalHits) * 100 : 0;
+            const avgLatency = Number.parseFloat(stats.avg_latency) || 0;
 
             return {
                 totalHits,
                 errorHits,
-                successHits: totalHits - errorHits,
+                successHits: Math.max(0, totalHits - errorHits),
                 errorRate: Number.parseFloat(errorRate.toFixed(2)),
-                avgLatency: Number.parseFloat(stats.avg_latency) || 0,
-                uniqueServices: Number.parseInt(stats.unique_services) || 0,
-                uniqueEndpoints: Number.parseInt(stats.unique_endpoints) || 0,
+                avgLatency: Number.parseFloat(avgLatency.toFixed(2)),
+                uniqueServices: Number.parseInt(stats.unique_services, 10) || 0,
+                uniqueEndpoints: Number.parseInt(stats.unique_endpoints, 10) || 0,
                 timeRange: {
                     start: startTime,
                     end: endTime,
@@ -39,52 +78,36 @@ export class AnalyticService {
         }
     }
 
-    parseTimeFilters(filters = {}) {
-        let { startTime, endTime } = filters;
-
-        if (!startTime) {
-            startTime = new Date();
-            startTime.setHours(startTime.getHours() - 24);
-        } else {
-            startTime = new Date(startTime);
-        }
-
-        if (!endTime) {
-            endTime = new Date();
-        } else {
-            endTime = new Date(endTime);
-        }
-
-        return {
-            startTime,
-            endTime,
-        };
-    }
-
     async getTopEndpoints(clientId, options = {}) {
         try {
-            const { limit = 10, startTime } = options;
-            const parsedStartTime = startTime ? new Date(startTime) : null;
+            const { limit = 10, startTime, endTime } = options;
+            const { startTime: parsedStart, endTime: parsedEnd } =
+                this.parseTimeFilters({ startTime, endTime });
 
             const endpoints = await this.metricRepo.getTopEndPoints(
                 clientId,
                 limit,
-                parsedStartTime,
+                parsedStart,
+                parsedEnd,
             );
 
-            return endpoints.map((endpoint) => ({
-                serviceName: endpoint.service_name,
-                endpoint: endpoint.endpoint,
-                method: endpoint.method,
-                totalHits: Number.parseInt(endpoint.total_hits),
-                avgLatency: Number.parseFloat(endpoint.avg_latency).toFixed(2),
-                errorHits: Number.parseInt(endpoint.error_hits),
-                errorRate: Number.parseFloat(
-                    (Number.parseInt(endpoint.error_hits) /
-                        Number.parseInt(endpoint.total_hits)) *
-                    100,
-                ).toFixed(2),
-            }));
+            return endpoints.map((endpoint) => {
+                const totalHits = Number.parseInt(endpoint.total_hits, 10) || 0;
+                const errorHits = Number.parseInt(endpoint.error_hits, 10) || 0;
+                const errorRate =
+                    totalHits > 0 ? (errorHits / totalHits) * 100 : 0;
+                const avgLatency = Number.parseFloat(endpoint.avg_latency) || 0;
+
+                return {
+                    serviceName: endpoint.service_name,
+                    endpoint: endpoint.endpoint,
+                    method: endpoint.method,
+                    totalHits,
+                    avgLatency: avgLatency.toFixed(2),
+                    errorHits,
+                    errorRate: errorRate.toFixed(2),
+                };
+            });
         } catch (error) {
             logger.error("Error getting top endpoints", error);
             throw error;
@@ -98,13 +121,13 @@ export class AnalyticService {
                 startTime,
                 endTime,
                 endpoint,
-                limit = 100,
+                limit = 1000,
             } = filters;
 
             const { endTime: end_time, startTime: start_time } =
                 this.parseTimeFilters({ startTime, endTime });
 
-            const metrices = await this.metricRepo.getMetrices({
+            const metrices = await this.metricRepo.getTimeSeriesMetrics({
                 clientId,
                 serviceName,
                 endpoint,
@@ -114,14 +137,14 @@ export class AnalyticService {
             });
 
             return metrices.map((metric) => ({
-                serviceName: metric.service_name,
-                endpoint: metric.endpoint,
-                method: metric.method,
-                totalHits: Number.parseInt(metric.total_hits),
-                errorHits: Number.parseInt(metric.error_hits),
-                avgLatency: Number.parseFloat(metric.avg_latency).toFixed(2),
-                minLatency: Number.parseFloat(metric.min_latency).toFixed(2),
-                maxLatency: Number.parseFloat(metric.max_latency).toFixed(2),
+                serviceName: metric.service_name || null,
+                endpoint: metric.endpoint || null,
+                method: metric.method || null,
+                totalHits: Number.parseInt(metric.total_hits, 10) || 0,
+                errorHits: Number.parseInt(metric.error_hits, 10) || 0,
+                avgLatency: Number.parseFloat(
+                    Number(metric.avg_latency || 0).toFixed(2),
+                ),
                 timeBucket: metric.time_bucket,
             }));
         } catch (error) {
@@ -130,3 +153,4 @@ export class AnalyticService {
         }
     }
 }
+export default AnalyticService;

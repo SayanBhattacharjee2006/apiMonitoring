@@ -8,7 +8,6 @@ import {
   Network,
   RefreshCw,
   Building,
-  CheckCircle,
 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import analyticsService from '../services/analyticsService';
@@ -50,11 +49,7 @@ export const DashboardPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [healthStatus, setHealthStatus] = useState('200 OK');
-
-  // Client Scope State (Super Admin can target a specific client ID)
-  const [scopeClientIdInput, setScopeClientIdInput] = useState(activeScopeClientId || '');
-  const [isEditingScope, setIsEditingScope] = useState(false);
+  const [healthStatus, setHealthStatus] = useState('Checking');
 
   // Compute time range boundaries
   const getTimeBoundaries = useCallback(() => {
@@ -110,9 +105,9 @@ export const DashboardPage = () => {
         }
 
         if (healthRes.status === 'fulfilled') {
-          setHealthStatus('200 OK');
+          setHealthStatus('Available');
         } else {
-          setHealthStatus('Degraded');
+          setHealthStatus('Unavailable');
         }
       } catch (err) {
         setError(err.message || 'An error occurred while loading dashboard telemetry');
@@ -127,19 +122,6 @@ export const DashboardPage = () => {
   useEffect(() => {
     fetchDashboard(false);
   }, [fetchDashboard]);
-
-  // Handle scope submission for Super Admin
-  const handleApplyScope = (e) => {
-    e.preventDefault();
-    setActiveScopeClientId(scopeClientIdInput);
-    setIsEditingScope(false);
-  };
-
-  const handleClearScope = () => {
-    setScopeClientIdInput('');
-    setActiveScopeClientId(null);
-    setIsEditingScope(false);
-  };
 
   // Safe extraction of dashboard items
   const stats = dashboardData?.stats || null;
@@ -160,7 +142,7 @@ export const DashboardPage = () => {
             System Observability Overview
           </h1>
           <p className="text-sm text-ink-secondary">
-            Real-time telemetry and ingest analytics across registered services.
+            Aggregated telemetry and ingest analytics across registered services.
           </p>
         </div>
 
@@ -204,13 +186,26 @@ export const DashboardPage = () => {
           <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-card-surface border border-hairline/60 shadow-sm">
             <span
               className={`w-2 h-2 rounded-full ${
-                healthStatus === '200 OK'
+                healthStatus === 'Available'
                   ? 'bg-tertiary-container animate-pulse'
+                  : healthStatus === 'Checking'
+                  ? 'bg-ink-secondary/50'
                   : 'bg-error animate-ping'
               }`}
             />
-            <span className="text-[11px] uppercase tracking-wider font-bold text-tertiary-container">
-              GET /health: {healthStatus}
+            <span className="text-[11px] uppercase tracking-wider font-bold text-ink-secondary">
+              Monitoring API:{' '}
+              <span
+                className={
+                  healthStatus === 'Available'
+                    ? 'text-tertiary-container'
+                    : healthStatus === 'Unavailable'
+                    ? 'text-error'
+                    : 'text-ink-primary'
+                }
+              >
+                {healthStatus}
+              </span>
             </span>
           </div>
         </div>
@@ -254,21 +249,33 @@ export const DashboardPage = () => {
           value={stats ? Number(stats.successHits).toLocaleString() : '—'}
           subtitle={
             stats && stats.totalHits > 0
-              ? `${(((stats.successHits) / stats.totalHits) * 100).toFixed(2)}% Yield`
-              : '100% Yield'
+              ? `${(((stats.successHits) / stats.totalHits) * 100).toFixed(2)}% Success Rate`
+              : 'No requests observed'
           }
-          badgeText={stats && stats.errorHits === 0 ? 'Optimal' : 'Reported'}
-          badgeType="success"
+          badgeText={
+            stats && stats.totalHits > 0
+              ? stats.errorHits === 0
+                ? 'No Errors'
+                : 'Errors Observed'
+              : 'No Data'
+          }
+          badgeType={stats && stats.errorHits > 0 ? 'warning' : 'neutral'}
           icon={CheckCircle2}
           iconColor="text-[#3B5738]"
         />
 
         <KpiCard
           title="Error Rate"
-          value={stats ? `${stats.errorRate}%` : '—'}
+          value={stats && stats.totalHits > 0 ? `${stats.errorRate}%` : (stats ? '0%' : '—')}
           subtitle={stats ? `${Number(stats.errorHits).toLocaleString()} Failed` : '0 Failed'}
-          badgeText={stats && stats.errorRate > 2 ? 'Elevated' : 'Nominal'}
-          badgeType={stats && stats.errorRate > 2 ? 'error' : 'neutral'}
+          badgeText={
+            stats && stats.totalHits > 0
+              ? stats.errorHits > 0
+                ? 'Errors Observed'
+                : 'No Errors'
+              : 'No Data'
+          }
+          badgeType={stats && stats.errorHits > 0 ? 'warning' : 'neutral'}
           icon={AlertTriangle}
           iconColor="text-burgundy"
         />
@@ -276,9 +283,9 @@ export const DashboardPage = () => {
         <KpiCard
           title="Avg Latency"
           value={stats ? `${stats.avgLatency} ms` : '—'}
-          subtitle="Target < 50ms"
-          badgeText={stats && stats.avgLatency < 50 ? 'Healthy SLA' : 'SLA Alert'}
-          badgeType={stats && stats.avgLatency < 50 ? 'success' : 'warning'}
+          subtitle="Across selected requests"
+          badgeText="Observed"
+          badgeType="neutral"
           icon={Clock}
           iconColor="text-secondary"
         />
@@ -287,8 +294,8 @@ export const DashboardPage = () => {
           title="Services"
           value={stats ? stats.uniqueServices : '—'}
           subtitle="Monitored Apps"
-          badgeText="100% Up"
-          badgeType="success"
+          badgeText="Registered"
+          badgeType="neutral"
           icon={Layers}
           iconColor="text-secondary"
         />
@@ -364,4 +371,3 @@ export const DashboardPage = () => {
 };
 
 export default DashboardPage;
-

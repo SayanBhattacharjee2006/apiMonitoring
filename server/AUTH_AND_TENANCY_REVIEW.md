@@ -367,3 +367,83 @@ Return { isDuplicate: false, eventId }             │    COMMIT & Return { isDu
 - **Reliability Test Suite**: `test/reliability/` (24 tests across `configSecurity`, `circuitBreaker`, `retryStrategy`, 100% PASS).
 - **Integration Test Suite**: `test/processing/idempotency.test.js` updated to verify PostgreSQL ledger persistence and consumer restart resilience.
 - **Frontend Build**: Vite production build succeeded cleanly with 0 contract regressions (`dist/` generated).
+
+
+---
+
+## Section I: Analytics Date Filtering, Time-Series Aggregation & Metric-Label Hardening
+
+### I.1 Problem Statement & Deficiencies Resolved
+1. **Date-Range Filtering Discrepancy**:
+   - `getTopEndpoints()` in `analyticsController.js` and `analyticService.js` only passed `startTime`, omitting `endTime`. The SQL in `MetricsRepository.getTopEndPoints()` did not apply an upper time boundary, allowing records past the selected time window to pollute rankings.
+   - All three dashboard operations (`getOverallStats`, `getTopEndpoints`, `getTimeSeries`) previously calculated default time boundaries independently with separate calls to `new Date()`, resulting in misaligned intervals.
+2. **Time-Series Truncation & Pre-Aggregation Limit Defect**:
+   - `MetricsRepository.getMetrices()` grouped by `(service_name, endpoint, method, time_bucket)` and applied `LIMIT 24` before grouping by time bucket. If multiple services/endpoints were monitored (e.g. 5 endpoints across 24 hours = 120 raw rows), the query returned only a fraction of the timeline (less than 5 hours) and in descending order.
+   - 7-day (up to 168 hours) and 30-day (up to 720 hours) selections were heavily truncated by the fixed limit of 24.
+3. **Unsupported Operational Claims & Arbitrary SLA Labels**:
+   - Dashboard displayed unsupported health claims: `Target < 50ms`, `Healthy SLA`, `SLA Alert`, `100% Up`, `Nominal`, `Elevated`, and a hardcoded 50ms reference line in `LatencyTrendChart.jsx`.
+   - `GET /health` was labeled as general system health and initialized to `200 OK` before checking.
+   - `TimeFilterStrip.jsx` claimed `Live Ingest` despite lacking WebSocket or polling streaming.
+   - Empty metrics displayed `100% Yield`.
+   - `MonitoredEndpointsTable.jsx` classified endpoints as `Degraded` or `Elevated 5xx` using unconfigured 1.5% and 5% thresholds.
+
+### I.2 Technical Corrections Applied
+1. **Unified Date Normalization (`AnalyticsController.normalizeTimeRange`)**:
+   - Normalizes the query window once in `normalizeTimeRange()`:
+     - Both omitted: previous 24 hours (`now - 24h` through `now`).
+     - Start only: `startTime` through `now`.
+     - End only: `endTime - 24h` through `endTime`.
+     - Both provided: validated (`startTime <= endTime`).
+   - Rejects invalid date formats and inverted ranges (`startTime > endTime`) with HTTP 400.
+   - All 3 operations (`overallStats`, `topEndpoints`, `timeSeries`) receive the exact same normalized date range.
+2. **Dedicated Time-Series Repository Query (`MetricsRepository.getTimeSeriesMetrics`)**:
+   - Created dedicated SQL query grouping by `time_bucket` ONLY:
+     ```sql
+     SELECT
+         time_bucket,
+         SUM(total_hits) AS total_hits,
+         SUM(error_hits) AS error_hits,
+         SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0) AS avg_latency
+     FROM endpoint_metrics
+     WHERE ...
+     GROUP BY time_bucket
+     ORDER BY time_bucket ASC
+     LIMIT $limit;
+     ```
+   - Mathematical weighting preserved: `SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0)`.
+   - Chronological order (`ASC`).
+   - Increased query limit up to 1000 buckets, accommodating full 7-day (168h) and 30-day (720h) trends without truncation.
+3. **Top Endpoints Date Boundary Correction**:
+   - `MetricsRepository.getTopEndPoints(clientId, limit, startTime, endTime)` now filters by both `time_bucket >= $startTime` and `time_bucket <= $endTime`.
+4. **Hourly Resolution Semantics**:
+   - All analytics queries operate on PostgreSQL `time_bucket` representing the start of the hour.
+   - Documented and clarified in UI: boundary buckets overlapping custom ranges are preserved.
+5. **Neutral Metric Labels & UI Hardening**:
+   - Latency card: Replaced `Target < 50ms` and `Healthy SLA / SLA Alert` with `Across selected requests` and neutral `Observed` badge.
+   - Services card: Replaced `100% Up` with `Registered` badge.
+   - Success/Error card: Replaced `100% Yield` on empty datasets with `No requests observed` and neutral `No Data` badge.
+   - `LatencyTrendChart.jsx`: Removed 50ms reference line `<ReferenceLine y={50} />` and `Target: < 50ms`. Added `Resolution: 1-hour intervals`.
+   - `MonitoredEndpointsTable.jsx`: Replaced arbitrary SLA badges (`Elevated 5xx`, `Degraded`) with neutral `No errors observed` / `Errors observed` based on real `errorHits`.
+   - Health Status: Initialized to `Checking` and labeled as `Monitoring API: Available` / `Unavailable`.
+   - `TimeFilterStrip.jsx`: Replaced `Live Ingest` with `Mode: Manual Refresh` and added `Hourly Aggregates` indicator. Enhanced custom modal with date validation, inline errors for `start > end`, and persistent inputs.
+   - Tooltips & X-Axis: Dynamic date labels based on timeline span (short: `HH:mm`, multi-day: `MMM D, HH:mm`, longer: `MMM D`) and full ISO timestamps in tooltips.
+
+### I.3 Files Modified
+1. [`server/src/services/processorService/repository/MetricsRepository.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/processorService/repository/MetricsRepository.js)
+2. [`server/src/services/analyticService/services/analyticService.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/analyticService/services/analyticService.js)
+3. [`server/src/services/analyticService/controller/analyticsController.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/services/analyticService/controller/analyticsController.js)
+4. [`frontend/src/pages/DashboardPage.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/pages/DashboardPage.jsx)
+5. [`frontend/src/components/dashboard/TimeFilterStrip.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/TimeFilterStrip.jsx)
+6. [`frontend/src/components/dashboard/MonitoredEndpointsTable.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/dashboard/MonitoredEndpointsTable.jsx)
+7. [`frontend/src/components/charts/LatencyTrendChart.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/charts/LatencyTrendChart.jsx)
+8. [`frontend/src/components/charts/RequestVolumeChart.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/charts/RequestVolumeChart.jsx)
+9. [`frontend/src/components/charts/ChartTooltip.jsx`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/frontend/src/components/charts/ChartTooltip.jsx)
+10. [`server/src/shared/config/mongodb.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/src/shared/config/mongodb.js)
+11. [`server/test/analytics/analytics.unit.test.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/test/analytics/analytics.unit.test.js)
+12. [`server/test/analytics/analytics.test.js`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/test/analytics/analytics.test.js)
+13. [`server/AUTH_AND_TENANCY_REVIEW.md`](file:///c:/Users/sayan/OneDrive/Desktop/Learnings/projects/apiMonitoring/server/AUTH_AND_TENANCY_REVIEW.md)
+
+### I.4 Verification Results
+- **Unit Analytics & Idempotency Suites**: 48 tests across 5 files (`test/analytics/analytics.unit.test.js`, `test/processing/idempotency.unit.test.js`, `test/reliability/configSecurity.test.js`, `test/reliability/circuitBreaker.test.js`, `test/reliability/retryStrategy.test.js`), **100% PASS** (48 passed, 0 failed).
+- **Integration Tests Added**: Added 3 new test cases to `test/analytics/analytics.test.js` validating date boundary filtering, invalid range rejection, and empty period responses.
+- **Frontend Production Build**: `npm run build` executed cleanly in 17.61s with 0 errors (Vite production bundle generated in `frontend/dist/`).

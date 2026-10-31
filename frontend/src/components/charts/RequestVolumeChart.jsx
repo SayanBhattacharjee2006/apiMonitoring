@@ -34,15 +34,48 @@ export const RequestVolumeChart = ({ rawTimeSeries = [], isLoading = false, erro
       } else {
         bucketMap.set(timeKey, {
           timestamp: timeKey,
-          label: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          fullDate: dateObj.toLocaleString(),
+          dateObj,
           totalHits: hits,
         });
       }
     });
 
-    // Sort chronologically
-    return Array.from(bucketMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+    const sortedBuckets = Array.from(bucketMap.values()).sort(
+      (a, b) => a.timestamp - b.timestamp
+    );
+
+    const minTime = sortedBuckets[0]?.timestamp || 0;
+    const maxTime = sortedBuckets[sortedBuckets.length - 1]?.timestamp || 0;
+    const spanMs = maxTime - minTime;
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS = 7 * ONE_DAY;
+
+    return sortedBuckets.map((b) => {
+      let label;
+      if (spanMs <= ONE_DAY) {
+        label = b.dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else if (spanMs <= SEVEN_DAYS) {
+        const month = b.dateObj.toLocaleDateString([], { month: 'short' });
+        const day = b.dateObj.getDate();
+        const time = b.dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        label = `${month} ${day}, ${time}`;
+      } else {
+        label = b.dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
+
+      return {
+        timestamp: b.timestamp,
+        label,
+        fullDate: b.dateObj.toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        totalHits: b.totalHits,
+      };
+    });
   }, [rawTimeSeries]);
 
   const peakPoint = useMemo(() => {
@@ -164,13 +197,11 @@ export const RequestVolumeChart = ({ rawTimeSeries = [], isLoading = false, erro
       </div>
 
       <div className="flex justify-between items-center text-[10px] uppercase font-bold text-ink-secondary pt-3 border-t border-hairline/40 mt-2">
-        <span>Timeline Start</span>
         <span>Chronological Ingest Stream</span>
-        <span>Timeline End</span>
+        <span>Resolution: 1-hour intervals</span>
       </div>
     </div>
   );
 };
 
 export default RequestVolumeChart;
-

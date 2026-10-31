@@ -161,8 +161,8 @@ export class MetricsRepository extends BaseRepository {
                 limit = 100,
                 offset = 0,
             } = filters;
-            const safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT); // Ensure limit is between 1 and MAX_LIMIT
-            const safeOffset = Math.max(offset, 0); // Ensure offset is non-negative
+            const safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
+            const safeOffset = Math.max(offset, 0);
 
             let query = `
             SELECT
@@ -180,8 +180,7 @@ export class MetricsRepository extends BaseRepository {
 
             const params = [];
             let paramIndex = 1;
-
-            let whereConditions = [];
+            const whereConditions = [];
 
             if (clientId) {
                 whereConditions.push(`client_id = $${paramIndex++}`);
@@ -229,39 +228,128 @@ export class MetricsRepository extends BaseRepository {
         }
     }
 
-    async getTopEndPoints(clientId, limit = 10, startTime = null) {
+    /**
+     * Dedicated time-series query:
+     * Groups by time_bucket only, aggregates across all services/endpoints,
+     * calculates mathematically correct weighted average latency,
+     * and orders chronologically with limit applied AFTER grouping.
+     *
+     * @param {Object} filters
+     * @returns {Promise<Array>}
+     */
+    async getTimeSeriesMetrics(filters = {}) {
         try {
+            const {
+                clientId,
+                serviceName,
+                endpoint,
+                startTime,
+                endTime,
+                limit = 1000,
+            } = filters;
+
             const safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
+
             let query = `
-        SELECT
-          service_name,
-          endpoint,
-          method,
-          SUM(total_hits) as total_hits,
-          SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0) as avg_latency,
-          SUM(error_hits) as error_hits
-        FROM endpoint_metrics
-      `;
+                SELECT
+                    time_bucket,
+                    SUM(total_hits) AS total_hits,
+                    SUM(error_hits) AS error_hits,
+                    SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0) AS avg_latency
+                FROM endpoint_metrics
+            `;
 
             const params = [];
             let paramIndex = 1;
+            const whereConditions = [];
 
             if (clientId) {
-                query += ` WHERE client_id = $${paramIndex++}`;
+                whereConditions.push(`client_id = $${paramIndex++}`);
+                params.push(clientId);
+            }
+
+            if (serviceName) {
+                whereConditions.push(`service_name = $${paramIndex++}`);
+                params.push(serviceName);
+            }
+
+            if (endpoint) {
+                whereConditions.push(`endpoint = $${paramIndex++}`);
+                params.push(endpoint);
+            }
+
+            if (startTime) {
+                whereConditions.push(`time_bucket >= $${paramIndex++}`);
+                params.push(startTime);
+            }
+
+            if (endTime) {
+                whereConditions.push(`time_bucket <= $${paramIndex++}`);
+                params.push(endTime);
+            }
+
+            if (whereConditions.length > 0) {
+                query += ` WHERE ${whereConditions.join(" AND ")}`;
+            }
+
+            query += `
+                GROUP BY time_bucket
+                ORDER BY time_bucket ASC
+                LIMIT $${paramIndex}
+            `;
+
+            params.push(safeLimit);
+
+            const result = await this._query(query, params);
+            return result.rows;
+        } catch (err) {
+            this.logger.error("Error fetching time-series metrics:", err);
+            throw err;
+        }
+    }
+
+    async getTopEndPoints(clientId, limit = 10, startTime = null, endTime = null) {
+        try {
+            const safeLimit = Math.min(Math.max(limit, 1), MAX_LIMIT);
+            let query = `
+                SELECT
+                    service_name,
+                    endpoint,
+                    method,
+                    SUM(total_hits) as total_hits,
+                    SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0) as avg_latency,
+                    SUM(error_hits) as error_hits
+                FROM endpoint_metrics
+            `;
+
+            const params = [];
+            let paramIndex = 1;
+            const whereConditions = [];
+
+            if (clientId) {
+                whereConditions.push(`client_id = $${paramIndex++}`);
                 params.push(clientId);
             }
 
             if (startTime) {
-                query += clientId != null ? " AND" : " WHERE";
-                query += ` time_bucket >= $${paramIndex++}`;
+                whereConditions.push(`time_bucket >= $${paramIndex++}`);
                 params.push(startTime);
             }
 
+            if (endTime) {
+                whereConditions.push(`time_bucket <= $${paramIndex++}`);
+                params.push(endTime);
+            }
+
+            if (whereConditions.length > 0) {
+                query += ` WHERE ${whereConditions.join(" AND ")}`;
+            }
+
             query += `
-        GROUP BY service_name, endpoint, method
-        ORDER BY total_hits DESC
-        LIMIT $${paramIndex}
-      `;
+                GROUP BY service_name, endpoint, method
+                ORDER BY total_hits DESC
+                LIMIT $${paramIndex}
+            `;
 
             params.push(safeLimit);
 
@@ -276,34 +364,36 @@ export class MetricsRepository extends BaseRepository {
     async getOverallStats(clientId, startTime = null, endTime = null) {
         try {
             let query = `
-        SELECT
-          SUM(total_hits) as total_hits,
-          SUM(error_hits) as error_hits,
-          SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0) as avg_latency,
-          COUNT(DISTINCT service_name) as unique_services,
-          COUNT(DISTINCT endpoint) as unique_endpoints
-        FROM endpoint_metrics
-      `;
+                SELECT
+                    SUM(total_hits) as total_hits,
+                    SUM(error_hits) as error_hits,
+                    SUM(avg_latency * total_hits) / NULLIF(SUM(total_hits), 0) as avg_latency,
+                    COUNT(DISTINCT service_name) as unique_services,
+                    COUNT(DISTINCT endpoint) as unique_endpoints
+                FROM endpoint_metrics
+            `;
 
             const params = [];
             let paramIndex = 1;
+            const whereConditions = [];
 
             if (clientId) {
-                query += ` WHERE client_id = $${paramIndex++}`;
+                whereConditions.push(`client_id = $${paramIndex++}`);
                 params.push(clientId);
             }
 
             if (startTime) {
-                query += clientId != null ? " AND" : " WHERE";
-                query += ` time_bucket >= $${paramIndex++}`;
+                whereConditions.push(`time_bucket >= $${paramIndex++}`);
                 params.push(startTime);
             }
 
             if (endTime) {
-                query +=
-                    clientId != null || startTime != null ? " AND" : " WHERE";
-                query += ` time_bucket <= $${paramIndex++}`;
+                whereConditions.push(`time_bucket <= $${paramIndex++}`);
                 params.push(endTime);
+            }
+
+            if (whereConditions.length > 0) {
+                query += ` WHERE ${whereConditions.join(" AND ")}`;
             }
 
             const result = await this._query(query, params);
@@ -317,7 +407,7 @@ export class MetricsRepository extends BaseRepository {
     _query(sql, params = [], client = null) {
         const target = client || this.postgres;
 
-        if(!target || typeof target.query !== "function") {
+        if (!target || typeof target.query !== "function") {
             this.logger.error("DB query error: Postgres client not configured");
             throw new Error("Postgres client not configured on MetricsRepository");
         }
@@ -326,6 +416,6 @@ export class MetricsRepository extends BaseRepository {
             text: sql,
             values: params,
             statement_timeout: query_TIMEOUT_MS,
-        })
+        });
     }
 }

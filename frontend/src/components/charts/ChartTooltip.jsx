@@ -2,9 +2,12 @@ import React from 'react';
 
 export const ChartTooltip = ({ active, payload, label, unit = '', formatter }) => {
   if (active && payload && payload.length) {
+    const fullDate = payload[0]?.payload?.fullDate;
+    const displayHeader = fullDate || label;
+
     return (
       <div className="bg-surface-container-highest border border-hairline/80 px-3 py-2 rounded-lg shadow-md text-xs font-sans text-ink-primary">
-        {label && <p className="font-semibold text-burgundy mb-1">{label}</p>}
+        {displayHeader && <p className="font-semibold text-burgundy mb-1">{displayHeader}</p>}
         {payload.map((entry, index) => {
           const val = formatter ? formatter(entry.value, entry.name) : `${entry.value} ${unit}`;
           return (
@@ -25,4 +28,3 @@ export const ChartTooltip = ({ active, payload, label, unit = '', formatter }) =
 };
 
 export default ChartTooltip;
-

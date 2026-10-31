@@ -2,7 +2,6 @@ import AppError from "../../../shared/utils/AppError.js";
 import logger from "../../../shared/config/logger.js";
 import ResponseFormatter from "../../../shared/utils/responseFormatter.js";
 
-
 export class AnalyticsController {
     constructor({
         analyticService: analyticSvc,
@@ -25,7 +24,7 @@ export class AnalyticsController {
 
             const isAdmin = await this.ensureCanViewAnalytics(req);
             const finalClientId = await this.resolveFinalClient(req, isAdmin);
-            const timeRange = this.validateTimeRange(startTime, endTime);
+            const timeRange = this.normalizeTimeRange(startTime, endTime);
 
             const stats = await this.analyticSvc.getOverallStats(
                 finalClientId,
@@ -98,17 +97,34 @@ export class AnalyticsController {
             throw new AppError("Access denied - No client association", 403);
         if (!this.isValidObjectId(userClientId))
             throw new AppError("Invalid Client ID format", 400);
+
         const client = await this.clientRepo.findById(userClientId);
         if (!client) throw new AppError("Client not found", 404);
         return userClientId;
     }
 
-    validateTimeRange(startTime, endTime) {
+    /**
+     * Normalizes the requested date range once for all analytics queries:
+     * - Both omitted: previous 24 hours through the current time.
+     * - Only startTime provided: use that start and current time as end.
+     * - Only endTime provided: use that end and a 24-hour preceding start.
+     * - Both supplied: validated and returned.
+     * Rejects invalid date formats and start times later than end times with HTTP 400.
+     *
+     * @param {string|number} startTime
+     * @param {string|number} endTime
+     * @returns {{ startTime: Date, endTime: Date }}
+     */
+    normalizeTimeRange(startTime, endTime) {
         const parseValue = (v) => {
             if (v === undefined || v === null || v === "") return null;
-            if (/^\d+$/.test(String(v))) return Number(v);
-            const parsed = Date.parse(String(v));
-            return Number.isNaN(parsed) ? NaN : parsed;
+            if (/^\d+$/.test(String(v))) {
+                const num = Number(v);
+                const d = new Date(num);
+                return Number.isNaN(d.getTime()) ? NaN : d;
+            }
+            const d = new Date(String(v));
+            return Number.isNaN(d.getTime()) ? NaN : d;
         };
 
         const start = parseValue(startTime);
@@ -121,14 +137,36 @@ export class AnalyticsController {
             throw new AppError("Invalid time format", 400);
         }
 
-        if (start !== null && end !== null && start > end) {
+        if (start !== null && end !== null && start.getTime() > end.getTime()) {
             throw new AppError("Invalid time range", 400);
         }
 
+        const now = new Date();
+        let finalStart;
+        let finalEnd;
+
+        if (start === null && end === null) {
+            finalEnd = now;
+            finalStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        } else if (start !== null && end === null) {
+            finalStart = start;
+            finalEnd = now;
+        } else if (start === null && end !== null) {
+            finalEnd = end;
+            finalStart = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        } else {
+            finalStart = start;
+            finalEnd = end;
+        }
+
         return {
-            startTime: start,
-            endTime: end,
+            startTime: finalStart,
+            endTime: finalEnd,
         };
+    }
+
+    validateTimeRange(startTime, endTime) {
+        return this.normalizeTimeRange(startTime, endTime);
     }
 
     isValidObjectId(id) {
@@ -142,17 +180,18 @@ export class AnalyticsController {
 
             const isAdmin = await this.ensureCanViewAnalytics(req);
             const finalClientId = await this.resolveFinalClient(req, isAdmin);
-            const timeRange = this.validateTimeRange(startTime, endTime);
+            const timeRange = this.normalizeTimeRange(startTime, endTime);
 
             const result = await Promise.allSettled([
                 this.analyticSvc.getOverallStats(finalClientId, timeRange),
                 this.analyticSvc.getTopEndpoints(finalClientId, {
                     limit: 5,
                     startTime: timeRange.startTime,
+                    endTime: timeRange.endTime,
                 }),
                 this.analyticSvc.getTimeSeries(finalClientId, {
                     ...timeRange,
-                    limit: 24,
+                    limit: 1000,
                 }),
             ]);
 
@@ -191,3 +230,5 @@ export class AnalyticsController {
         }
     }
 }
+
+export default AnalyticsController;
